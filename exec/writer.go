@@ -7,26 +7,26 @@ var (
 	bytesEOL = []byte("\n")
 )
 
-// StdoutWriter represents an object capable of writing what's coming out of stdout
-type StdoutWriter struct {
+// StdWriter represents an object capable of writing what's coming out of stdout or stderr
+type StdWriter struct {
 	buffer *bytes.Buffer
 	fn     func(i []byte)
 }
 
-// NewStdoutWriter creates a new StdoutWriter
-func NewStdoutWriter(fn func(i []byte)) *StdoutWriter {
-	return &StdoutWriter{buffer: &bytes.Buffer{}, fn: fn}
+// NewStdWriter creates a new StdWriter
+func NewStdWriter(fn func(i []byte)) *StdWriter {
+	return &StdWriter{buffer: &bytes.Buffer{}, fn: fn}
 }
 
 // Close closes the writer
-func (w *StdoutWriter) Close() {
+func (w *StdWriter) Close() {
 	if w.buffer.Len() > 0 {
 		w.write(w.buffer.Bytes())
 	}
 }
 
 // Write implements the io.Writer interface
-func (w *StdoutWriter) Write(i []byte) (n int, err error) {
+func (w *StdWriter) Write(i []byte) (n int, err error) {
 	// Update n to avoid broken pipe error
 	defer func() {
 		n = len(i)
@@ -57,6 +57,6 @@ func (w *StdoutWriter) Write(i []byte) (n int, err error) {
 }
 
 // write writes the input
-func (w *StdoutWriter) write(i []byte) {
+func (w *StdWriter) write(i []byte) {
 	w.fn(i)
 }

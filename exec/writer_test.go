@@ -7,10 +7,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestStdoutWriter(t *testing.T) {
+func TestStdWriter(t *testing.T) {
 	// Init
 	var o []string
-	var w = astiexec.NewStdoutWriter(func(i []byte) {
+	var w = astiexec.NewStdWriter(func(i []byte) {
 		o = append(o, string(i))
 	})
 
