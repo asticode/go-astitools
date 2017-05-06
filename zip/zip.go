@@ -105,11 +105,10 @@ func Unzip(ctx context.Context, src, dst string) (err error) {
 		if b, err = ioutil.ReadAll(fr); err != nil {
 			return errors.Wrapf(err, "ioutil.Readall on %s failed", f.Name)
 		}
-		var oldname = filepath.Join(filepath.Dir(p), string(b))
 
 		// Create the symlink
-		if err = os.Symlink(oldname, p); err != nil {
-			return errors.Wrapf(err, "creating symlink from %s to %s failed", oldname, p)
+		if err = os.Symlink(string(b), p); err != nil {
+			return errors.Wrapf(err, "creating symlink from %s to %s failed", string(b), p)
 		}
 	}
 	return
