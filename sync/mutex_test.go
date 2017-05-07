@@ -4,13 +4,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/asticode/go-toolkit/sync"
+	"github.com/asticode/go-astitools/sync"
 	"github.com/rs/xlog"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestRWMutex_IsDeadlocked(t *testing.T) {
-	var m = sync.NewRWMutex(xlog.NopLogger, "test")
+	var m = astisync.NewRWMutex(xlog.NopLogger, "test")
 	d, _ := m.IsDeadlocked(time.Millisecond)
 	assert.False(t, d)
 	m.Lock()

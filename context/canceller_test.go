@@ -4,12 +4,12 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/asticode/go-toolkit/context"
+	"github.com/asticode/go-astitools/context"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestCanceller_Cancel(t *testing.T) {
-	var c = context.NewCanceller()
+	var c = asticontext.NewCanceller()
 	var ctx1, cancel1 = c.NewContext()
 	var ctx2, cancel2 = c.NewContext()
 	defer cancel1()

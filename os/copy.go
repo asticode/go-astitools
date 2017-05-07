@@ -1,11 +1,10 @@
 package astios
 
 import (
+	"context"
 	"os"
 
-	"context"
-
-	"github.com/asticode/go-toolkit/io"
+	"github.com/asticode/go-astitools/io"
 )
 
 // Copy is a cross partitions cancellable copy
@@ -40,6 +39,6 @@ func Copy(ctx context.Context, src, dst string) (err error) {
 	}
 
 	// Copy the content
-	_, err = io.Copy(ctx, srcFile, dstFile)
+	_, err = astiio.Copy(ctx, srcFile, dstFile)
 	return
 }

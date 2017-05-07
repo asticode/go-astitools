@@ -5,7 +5,7 @@ import (
 	"sync"
 	"testing"
 
-	main "github.com/asticode/go-toolkit/io"
+	"github.com/asticode/go-astitools/io"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/net/context"
 )
@@ -43,7 +43,7 @@ func TestCopy(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		nw, err = main.Copy(ctx, r1, w)
+		nw, err = astiio.Copy(ctx, r1, w)
 	}()
 	cancel()
 	wg.Wait()
@@ -52,7 +52,7 @@ func TestCopy(t *testing.T) {
 	// Test success
 	w.Reset()
 	ctx = context.Background()
-	nw, err = main.Copy(ctx, r2, w)
+	nw, err = astiio.Copy(ctx, r2, w)
 	assert.NoError(t, err)
 	assert.Equal(t, "testiocopy", w.String())
 }

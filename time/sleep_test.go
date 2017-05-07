@@ -1,12 +1,11 @@
 package astitime_test
 
 import (
-	"testing"
-	stltime "time"
-
 	"sync"
+	"testing"
+	"time"
 
-	"github.com/asticode/go-toolkit/time"
+	"github.com/asticode/go-astitools/time"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/net/context"
 )
@@ -18,7 +17,7 @@ func TestSleep(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		err = time.Sleep(ctx, stltime.Minute)
+		err = astitime.Sleep(ctx, time.Minute)
 	}()
 	cancel()
 	wg.Wait()

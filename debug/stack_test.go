@@ -3,13 +3,13 @@ package astidebug_test
 import (
 	"testing"
 
-	"github.com/asticode/go-toolkit/debug"
+	"github.com/asticode/go-astitools/debug"
 	"github.com/stretchr/testify/assert"
 )
 
 func mockStack() []byte {
 	return []byte(`goroutine 1 [running]:
-	runtime/debug.Stack(0xc42012e280, 0xc4200f8e17, 0xc4200f8d78)
+	runtime/astidebug.Stack(0xc42012e280, 0xc4200f8e17, 0xc4200f8d78)
 	/usr/local/go/src/runtime/debug/stack.go:24 +0x79
 	github.com/asticode/myrepo.glob..func2(0x0, 0x0, 0xc4200f8da8)
 	/home/asticode/projects/go/src/github.com/asticode/myrepo/sync.go:55 +0x22
@@ -26,9 +26,9 @@ func mockStack() []byte {
 }
 
 func TestNewStack(t *testing.T) {
-	debug.DebugStack = func() []byte {
+	astidebug.DebugStack = func() []byte {
 		return mockStack()
 	}
-	var s = debug.NewStack()
-	assert.Equal(t, debug.Stack{debug.StackItem{Filename: "/usr/local/go/src/runtime/debug/stack.go", Function: "runtime/debug.Stack", Line: 24}, debug.StackItem{Filename: "/home/asticode/projects/go/src/github.com/asticode/myrepo/sync.go", Function: "github.com/asticode/myrepo.glob..func2", Line: 55}, debug.StackItem{Filename: "/home/asticode/projects/go/src/github.com/asticode/myrepo/sync.go", Function: "github.com/asticode/myrepo.(*MyStruct).LogMessage", Line: 70}, debug.StackItem{Filename: "/home/asticode/projects/go/src/github.com/asticode/myrepo/sync.go", Function: "github.com/asticode/myrepo.(*MyStruct).RUnlock.func1", Line: 147}, debug.StackItem{Filename: "/home/asticode/projects/go/src/github.com/asticode/myrepo/sync.go", Function: "github.com/asticode/myrepo.(*MyStruct).RUnlock", Line: 151}, debug.StackItem{Filename: "/home/asticode/projects/go/src/github.com/asticode/myproject/worker.go", Function: "main.(*Worker).Retire", Line: 174}, debug.StackItem{Filename: "/home/asticode/projects/go/src/github.com/asticode/myproject/main.go", Function: "main.main", Line: 76}}, s)
+	var s = astidebug.NewStack()
+	assert.Equal(t, astidebug.Stack{astidebug.StackItem{Filename: "/usr/local/go/src/runtime/debug/stack.go", Function: "runtime/astidebug.Stack", Line: 24}, astidebug.StackItem{Filename: "/home/asticode/projects/go/src/github.com/asticode/myrepo/sync.go", Function: "github.com/asticode/myrepo.glob..func2", Line: 55}, astidebug.StackItem{Filename: "/home/asticode/projects/go/src/github.com/asticode/myrepo/sync.go", Function: "github.com/asticode/myrepo.(*MyStruct).LogMessage", Line: 70}, astidebug.StackItem{Filename: "/home/asticode/projects/go/src/github.com/asticode/myrepo/sync.go", Function: "github.com/asticode/myrepo.(*MyStruct).RUnlock.func1", Line: 147}, astidebug.StackItem{Filename: "/home/asticode/projects/go/src/github.com/asticode/myrepo/sync.go", Function: "github.com/asticode/myrepo.(*MyStruct).RUnlock", Line: 151}, astidebug.StackItem{Filename: "/home/asticode/projects/go/src/github.com/asticode/myproject/worker.go", Function: "main.(*Worker).Retire", Line: 174}, astidebug.StackItem{Filename: "/home/asticode/projects/go/src/github.com/asticode/myproject/main.go", Function: "main.main", Line: 76}}, s)
 }
