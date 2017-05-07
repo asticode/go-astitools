@@ -2,6 +2,7 @@ package astihttp
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"os"
 
@@ -27,7 +28,7 @@ func Download(ctx context.Context, c *http.Client, src, dst string) (err error) 
 
 	// Validate status code
 	if resp.StatusCode != http.StatusOK {
-		return errors.Wrapf(err, "getting %s returned %d status code", src, resp.StatusCode)
+		return fmt.Errorf("getting %s returned %d status code", src, resp.StatusCode)
 	}
 
 	// Copy
