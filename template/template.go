@@ -1,6 +1,7 @@
 package astitemplate
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -36,9 +37,11 @@ func ParseDirectory(i, ext string) (t *template.Template, err error) {
 			return
 		}
 
-		// Add template
+		// Parse template
 		var c = t.New(strings.TrimPrefix(path, i))
-		c.Parse(string(b))
+		if _, err = c.Parse(string(b)); err != nil {
+			return fmt.Errorf("%s while parsing template %s", err, path)
+		}
 		return
 	})
 }
