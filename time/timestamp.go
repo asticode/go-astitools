@@ -32,6 +32,6 @@ func (t Timestamp) MarshalJSON() ([]byte, error) {
 
 // MarshalText implements the TextMarshaler interface
 func (t Timestamp) MarshalText() (text []byte, err error) {
-	text = []byte(strconv.Itoa(int(t.Unix())))
+	text = []byte(strconv.Itoa(int(t.UTC().Unix())))
 	return
 }
