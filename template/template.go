@@ -38,7 +38,7 @@ func ParseDirectory(i, ext string) (t *template.Template, err error) {
 		}
 
 		// Parse template
-		var c = t.New(strings.TrimPrefix(path, i))
+		var c = t.New(filepath.ToSlash(strings.TrimPrefix(path, i)))
 		if _, err = c.Parse(string(b)); err != nil {
 			return fmt.Errorf("%s while parsing template %s", err, path)
 		}
