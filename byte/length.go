@@ -7,9 +7,11 @@ func ToLength(i []byte, rpl byte, length int) []byte {
 	} else if len(i) > length {
 		return i[:length]
 	} else {
-		for idx := 0; idx <= length-len(i); idx++ {
-			i = append(i, rpl)
+		var o = make([]byte, length)
+		o = i
+		for idx := 0; idx < length-len(i); idx++ {
+			o = append(o, rpl)
 		}
-		return i
+		return o
 	}
 }
