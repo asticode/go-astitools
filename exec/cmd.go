@@ -1,28 +1,25 @@
 package astiexec
 
 import (
+	"context"
 	"os/exec"
 	"strings"
 	"time"
 
-	"context"
-
-	"github.com/rs/xlog"
+	"github.com/asticode/go-astilog"
 )
 
 // Cmd represents a command
 type Cmd struct {
-	Args   []string
-	ctx    context.Context
-	Logger xlog.Logger
+	Args []string
+	ctx  context.Context
 }
 
 // NewCmd creates a new command
 func NewCmd(ctx context.Context, args ...string) (cmd *Cmd) {
 	cmd = &Cmd{
-		Args:   args,
-		ctx:    ctx,
-		Logger: xlog.NopLogger,
+		Args: args,
+		ctx:  ctx,
 	}
 	return
 }
@@ -43,7 +40,7 @@ var Exec = func(cmd *Cmd) (o []byte, d time.Duration, err error) {
 	execCmd := exec.CommandContext(cmd.ctx, cmd.Args[0], cmd.Args[1:]...)
 
 	// Execute command
-	cmd.Logger.Debugf("Executing %s", cmd)
+	astilog.Debugf("Executing %s", cmd)
 	o, err = execCmd.CombinedOutput()
 	return
 }

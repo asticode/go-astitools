@@ -1,34 +1,26 @@
 package astisync
 
 import (
+	"fmt"
+	"runtime"
 	"sync"
 	"time"
 
-	"fmt"
-	"runtime"
-
-	"github.com/rs/xlog"
-)
-
-// Constants
-const (
-	loggerKeyMutexName = "mutex_name"
+	"github.com/asticode/go-astilog"
 )
 
 // RWMutex represents a RWMutex capable of logging its actions to ease deadlock debugging
 type RWMutex struct {
 	lastSuccessfulLockCaller string
-	logger                   xlog.Logger
 	mutex                    *sync.RWMutex
 	name                     string
 }
 
 // NewRWMutex creates a new RWMutex
-func NewRWMutex(l xlog.Logger, name string) *RWMutex {
+func NewRWMutex(name string) *RWMutex {
 	return &RWMutex{
-		logger: l,
-		mutex:  &sync.RWMutex{},
-		name:   name,
+		mutex: &sync.RWMutex{},
+		name:  name,
 	}
 }
 
@@ -38,22 +30,16 @@ func (m *RWMutex) Lock() {
 	if _, file, line, ok := runtime.Caller(1); ok {
 		caller = fmt.Sprintf("%s:%d", file, line)
 	}
-	m.logger.Debugf("Requesting lock for %s at %s", m.name, caller, xlog.F{
-		loggerKeyMutexName: m.name,
-	})
+	astilog.Debugf("Requesting lock for %s at %s", m.name, caller)
 	m.mutex.Lock()
-	m.logger.Debugf("Lock acquired for %s at %s", m.name, caller, xlog.F{
-		loggerKeyMutexName: m.name,
-	})
+	astilog.Debugf("Lock acquired for %s at %s", m.name, caller)
 	m.lastSuccessfulLockCaller = caller
 }
 
 // Unlock write unlocks the mutex
 func (m *RWMutex) Unlock() {
 	m.mutex.Unlock()
-	m.logger.Debugf("Unlock executed for %s", m.name, xlog.F{
-		loggerKeyMutexName: m.name,
-	})
+	astilog.Debugf("Unlock executed for %s", m.name)
 }
 
 // RLock read locks the mutex
@@ -62,22 +48,16 @@ func (m *RWMutex) RLock() {
 	if _, file, line, ok := runtime.Caller(1); ok {
 		caller = fmt.Sprintf("%s:%d", file, line)
 	}
-	m.logger.Debugf("Requesting rlock for %s at %s", m.name, caller, xlog.F{
-		loggerKeyMutexName: m.name,
-	})
+	astilog.Debugf("Requesting rlock for %s at %s", m.name, caller)
 	m.mutex.RLock()
-	m.logger.Debugf("RLock acquired for %s at %s", m.name, caller, xlog.F{
-		loggerKeyMutexName: m.name,
-	})
+	astilog.Debugf("RLock acquired for %s at %s", m.name, caller)
 	m.lastSuccessfulLockCaller = caller
 }
 
 // RUnlock read unlocks the mutex
 func (m *RWMutex) RUnlock() {
 	m.mutex.RUnlock()
-	m.logger.Debugf("RUnlock executed for %s", m.name, xlog.F{
-		loggerKeyMutexName: m.name,
-	})
+	astilog.Debugf("RUnlock executed for %s", m.name)
 }
 
 // IsDeadlocked checks whether the mutex is deadlocked with a given timeout and returns the last caller
