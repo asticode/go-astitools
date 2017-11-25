@@ -27,3 +27,26 @@ func (f *Strings) Set(i string) error {
 	*f = append(*f, i)
 	return nil
 }
+
+// StringsMap represents a flag that can be set several times that will output a map[string]bool
+type StringsMap map[string]bool
+
+// NewStringsMap creates a new StringsMap
+func NewStringsMap() StringsMap {
+	return StringsMap(make(map[string]bool))
+}
+
+// String implements the flag.Value interface
+func (f StringsMap) String() string {
+	var s []string
+	for k := range f {
+		s = append(s, k)
+	}
+	return strings.Join(s, ",")
+}
+
+// Set implements the flag.Value interface
+func (f StringsMap) Set(i string) error {
+	f[i] = true
+	return nil
+}
