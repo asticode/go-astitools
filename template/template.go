@@ -45,3 +45,47 @@ func ParseDirectory(i, ext string) (t *template.Template, err error) {
 		return
 	})
 }
+
+// ParseHTML parses html templates
+// TODO Handle recursive glob
+func ParseHTML(i string) (ts map[string]*template.Template, err error) {
+	// Init
+	i = filepath.Clean(i)
+	ts = make(map[string]*template.Template)
+
+	// Get layouts
+	var ls []string
+	if ls, err = filepath.Glob(i + "/layouts/*.html"); err != nil {
+		return
+	}
+
+	// Get pages
+	var ps []string
+	if ps, err = filepath.Glob(i + "/pages/*.html"); err != nil {
+		return
+	}
+
+	// Build root template
+	tr := template.New("root")
+	if tr, err = tr.Parse(`{{ template "base" . }}`); err != nil {
+		return
+	}
+
+	// Loop through pages
+	for _, p := range ps {
+		// Clone root template
+		var t *template.Template
+		if t, err = tr.Clone(); err != nil {
+			return
+		}
+
+		// Parse files
+		if t, err = t.ParseFiles(append(ls, p)...); err != nil {
+			return
+		}
+
+		// Add template
+		ts[strings.TrimPrefix(p, i)] = t
+	}
+	return
+}
