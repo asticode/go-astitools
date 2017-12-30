@@ -21,6 +21,38 @@ func ChainMiddlewares(h http.Handler, ms ...Middleware) http.Handler {
 // Middleware represents a middleware
 type Middleware func(http.Handler) http.Handler
 
+// MiddlewareBasicAuth adds basic HTTP auth to a handler
+func MiddlewareBasicAuth(username, password, prefix string) Middleware {
+	return func(h http.Handler) http.Handler {
+		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			// Only authenticate if prefix is correct
+			if prefix == "" || strings.HasPrefix(r.URL.EscapedPath(), prefix) {
+				if u, p, ok := r.BasicAuth(); !ok || u != username || p != password {
+					rw.Header().Set("WWW-Authenticate", "Basic Realm")
+					rw.WriteHeader(http.StatusUnauthorized)
+					return
+				}
+			}
+
+			// Next handler
+			h.ServeHTTP(rw, r)
+		})
+	}
+}
+
+// MiddlewareContentType adds a content type header
+func MiddlewareContentType(contentType string) Middleware {
+	return func(h http.Handler) http.Handler {
+		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			// Add header
+			rw.Header().Set("Content-Type", contentType)
+
+			// Next handler
+			h.ServeHTTP(rw, r)
+		})
+	}
+}
+
 // MiddlewareTimeout adds a timeout to a handler
 func MiddlewareTimeout(timeout time.Duration) Middleware {
 	return func(h http.Handler) http.Handler {
@@ -47,25 +79,6 @@ func MiddlewareTimeout(timeout time.Duration) Middleware {
 					return
 				}
 			}
-		})
-	}
-}
-
-// MiddlewareBasicAuth adds basic HTTP auth to a handler
-func MiddlewareBasicAuth(username, password, prefix string) Middleware {
-	return func(h http.Handler) http.Handler {
-		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			// Only authenticate if prefix is correct
-			if prefix == "" || strings.HasPrefix(r.URL.EscapedPath(), prefix) {
-				if u, p, ok := r.BasicAuth(); !ok || u != username || p != password {
-					rw.Header().Set("WWW-Authenticate", "Basic Realm")
-					rw.WriteHeader(http.StatusUnauthorized)
-					return
-				}
-			}
-
-			// Next handler
-			h.ServeHTTP(rw, r)
 		})
 	}
 }
