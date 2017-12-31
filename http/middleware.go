@@ -122,7 +122,7 @@ func handleTimeout(timeout time.Duration, rw http.ResponseWriter, fn func()) {
 	for {
 		select {
 		case <-ctx.Done():
-			astilog.Error(errors.Wrap(ctx.Err(), "serving HTTP failed"))
+			astilog.Error(errors.Wrap(ctx.Err(), "astihttp: serving HTTP failed"))
 			rw.WriteHeader(http.StatusGatewayTimeout)
 			return
 		case <-done:

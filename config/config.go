@@ -12,14 +12,14 @@ func New(global interface{}, localPath string, flag interface{}) (_ interface{},
 	// Local config
 	if localPath != "" {
 		if _, err = toml.DecodeFile(localPath, global); err != nil {
-			err = errors.Wrapf(err, "toml decoding %s failed", localPath)
+			err = errors.Wrapf(err, "asticonfig: toml decoding %s failed", localPath)
 			return
 		}
 	}
 
 	// Merge configs
 	if err = mergo.Merge(flag, global); err != nil {
-		err = errors.Wrap(err, "merging configs failed")
+		err = errors.Wrap(err, "asticonfig: merging configs failed")
 		return
 	}
 	return flag, nil
