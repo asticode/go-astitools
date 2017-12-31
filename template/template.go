@@ -119,7 +119,8 @@ func ParseDirectoryWithLayouts(templatesPath, layoutsPath, ext string) (ts map[s
 		}
 
 		// Add template
-		ts[strings.TrimPrefix(path, templatesPath)] = t
+		// We use ToSlash to homogenize Windows path
+		ts[filepath.ToSlash(strings.TrimPrefix(path, templatesPath))] = t
 		return
 	}); err != nil {
 		err = errors.Wrapf(err, "walking templates in %s failed", templatesPath)
