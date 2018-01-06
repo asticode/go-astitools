@@ -3,6 +3,7 @@ package astihttp
 import (
 	"context"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/asticode/go-astilog"
@@ -12,16 +13,52 @@ import (
 
 // ChainMiddlewares chains middlewares
 func ChainMiddlewares(h http.Handler, ms ...Middleware) http.Handler {
+	return ChainMiddlewaresWithPrefix(h, []string{}, ms...)
+}
+
+// ChainMiddlewaresWithPrefix chains middlewares if one of prefixes is present
+func ChainMiddlewaresWithPrefix(h http.Handler, prefixes []string, ms ...Middleware) http.Handler {
 	for _, m := range ms {
-		h = m(h)
+		if len(prefixes) == 0 {
+			h = m(h)
+		} else {
+			t := h
+			h = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+				for _, prefix := range prefixes {
+					if strings.HasPrefix(r.URL.EscapedPath(), prefix) {
+						m(t).ServeHTTP(rw, r)
+						return
+					}
+				}
+				t.ServeHTTP(rw, r)
+			})
+		}
 	}
 	return h
 }
 
 // ChainRouterMiddlewares chains router middlewares
 func ChainRouterMiddlewares(h httprouter.Handle, ms ...RouterMiddleware) httprouter.Handle {
+	return ChainRouterMiddlewaresWithPrefix(h, []string{}, ms...)
+}
+
+// ChainRouterMiddlewares chains router middlewares if one of prefixes is present
+func ChainRouterMiddlewaresWithPrefix(h httprouter.Handle, prefixes []string, ms ...RouterMiddleware) httprouter.Handle {
 	for _, m := range ms {
-		h = m(h)
+		if len(prefixes) == 0 {
+			h = m(h)
+		} else {
+			t := h
+			h = func(rw http.ResponseWriter, r *http.Request, p httprouter.Params) {
+				for _, prefix := range prefixes {
+					if strings.HasPrefix(r.URL.EscapedPath(), prefix) {
+						m(t)(rw, r, p)
+						return
+					}
+				}
+				t(rw, r, p)
+			}
+		}
 	}
 	return h
 }
