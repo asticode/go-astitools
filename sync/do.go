@@ -5,25 +5,20 @@ import (
 	"sync"
 )
 
-// Doer is an object capable of doing stuff without blocking
-type Doer struct {
+// Do is an object capable of doing stuff in FIFO order without blocking
+type Do struct {
 	cancel context.CancelFunc
 	cond   *sync.Cond
 	ctx    context.Context
-	fn     DoerFunc
 	mc     *sync.Mutex // Locks cond
 	mq     *sync.Mutex // Locks queue
-	queue  []interface{}
+	queue  []func()
 }
 
-// DoerFunc represents the doer func
-type DoerFunc func(job interface{})
-
-// NewDoer creates a new doer
-func NewDoer(fn DoerFunc) (d *Doer) {
-	// Create doer
-	d = &Doer{
-		fn: fn,
+// NewDo creates a new Do
+func NewDo() (d *Do) {
+	// Create do
+	d = &Do{
 		mc: &sync.Mutex{},
 		mq: &sync.Mutex{},
 	}
@@ -40,16 +35,16 @@ func NewDoer(fn DoerFunc) (d *Doer) {
 }
 
 // Close implements the io.Closer interface
-func (d *Doer) Close() error {
+func (d *Do) Close() error {
 	d.cancel()
 	return nil
 }
 
-// Do adds a job to the queue
-func (d *Doer) Do(job interface{}) {
+// Do execute a new func
+func (d *Do) Do(fn func()) {
 	// Add job
 	d.mq.Lock()
-	d.queue = append(d.queue, job)
+	d.queue = append(d.queue, fn)
 	d.mq.Unlock()
 
 	// Broadcast
@@ -58,23 +53,23 @@ func (d *Doer) Do(job interface{}) {
 	d.cond.L.Unlock()
 }
 
-// do loops through jobs and executes them if any, or wait for a new one otherwise
-func (d *Doer) do() {
+// do loops through funcs in queue and executes them if any, or wait for a new one otherwise
+func (d *Do) do() {
 	for {
 		// Check context
 		if d.ctx.Err() != nil {
 			return
 		}
 
-		// Lock cond here in case a job is added between retrieving l and doing the if on it
+		// Lock cond here in case a func is added between retrieving l and doing the if on it
 		d.cond.L.Lock()
 
-		// Get number of jobs in queue
+		// Get number of funcs in queue
 		d.mq.Lock()
 		l := len(d.queue)
 		d.mq.Unlock()
 
-		// No queued job
+		// No queued funcs
 		if l == 0 {
 			d.cond.Wait()
 			d.cond.L.Unlock()
@@ -82,15 +77,15 @@ func (d *Doer) do() {
 		}
 		d.cond.L.Unlock()
 
-		// Get first job
+		// Get first func
 		d.mq.Lock()
-		job := d.queue[0]
+		fn := d.queue[0]
 		d.mq.Unlock()
 
-		// Execute callback
-		d.fn(job)
+		// Execute func
+		fn()
 
-		// Remove first job
+		// Remove first func
 		d.mq.Lock()
 		d.queue = d.queue[1:]
 		d.mq.Unlock()
