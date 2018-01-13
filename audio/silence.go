@@ -14,9 +14,8 @@ type SilenceDetector struct {
 
 // SilenceDetectorOptions represents silence detector options
 type SilenceDetectorOptions struct {
-	AnalysisDuration     time.Duration `toml:"analysis_duration"`
-	SilenceMaxAudioLevel float64       `toml:"silence_max_audio_level"`
-	SilenceMinDuration   time.Duration `toml:"silence_min_duration"`
+	AnalysisDuration   time.Duration `toml:"analysis_duration"`
+	SilenceMinDuration time.Duration `toml:"silence_min_duration"`
 }
 
 // NewSilenceDetector creates a new silence detector
@@ -33,7 +32,7 @@ func (d *SilenceDetector) Reset() {
 }
 
 // Add adds samples to the buffer and checks whether there are valid samples between silences
-func (d *SilenceDetector) Add(samples []int32, sampleRate int) (validSamples [][]int32) {
+func (d *SilenceDetector) Add(samples []int32, sampleRate int, silenceMaxAudioLevel float64) (validSamples [][]int32) {
 	// Append new samples
 	*d.samples = append(*d.samples, samples...)
 
@@ -64,7 +63,7 @@ func (d *SilenceDetector) Add(samples []int32, sampleRate int) (validSamples [][
 	// Count silences at the start
 	var silencesCount int
 	for _, l := range *d.audioLevels {
-		if l < d.o.SilenceMaxAudioLevel {
+		if l < silenceMaxAudioLevel {
 			silencesCount++
 		} else {
 			break
@@ -87,7 +86,7 @@ func (d *SilenceDetector) Add(samples []int32, sampleRate int) (validSamples [][
 	silencesCount = 0
 	for i = 1; i < len(*d.audioLevels); i++ {
 		// Silence detected
-		if (*d.audioLevels)[i] < d.o.SilenceMaxAudioLevel {
+		if (*d.audioLevels)[i] < silenceMaxAudioLevel {
 			silencesCount++
 			continue
 		}
