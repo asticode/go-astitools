@@ -20,12 +20,16 @@ type SilenceDetectorOptions struct {
 }
 
 // NewSilenceDetector creates a new silence detector
-func NewSilenceDetector(o SilenceDetectorOptions) *SilenceDetector {
-	return &SilenceDetector{
-		audioLevels: &[]float64{},
-		o:           o,
-		samples:     &[]int32{},
-	}
+func NewSilenceDetector(o SilenceDetectorOptions) (d *SilenceDetector) {
+	d = &SilenceDetector{o: o}
+	d.Reset()
+	return
+}
+
+// Reset resets the silence detector
+func (d *SilenceDetector) Reset() {
+	d.audioLevels = &[]float64{}
+	d.samples = &[]int32{}
 }
 
 // Add adds samples to the buffer and checks whether there are valid samples between silences
