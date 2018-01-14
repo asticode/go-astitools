@@ -8,20 +8,29 @@ import (
 // SilenceDetector represents a silence detector
 type SilenceDetector struct {
 	audioLevels *[]float64
-	o           SilenceDetectorOptions
+	c           SilenceDetectorConfiguration
 	samples     *[]int32
 }
 
-// SilenceDetectorOptions represents silence detector options
-type SilenceDetectorOptions struct {
-	AnalysisDuration   time.Duration `toml:"analysis_duration"`
+// SilenceDetectorConfiguration represents a silence detector configuration
+type SilenceDetectorConfiguration struct {
 	SilenceMinDuration time.Duration `toml:"silence_min_duration"`
+	StepDuration       time.Duration `toml:"step_duration"`
 }
 
 // NewSilenceDetector creates a new silence detector
-func NewSilenceDetector(o SilenceDetectorOptions) (d *SilenceDetector) {
-	d = &SilenceDetector{o: o}
+func NewSilenceDetector(c SilenceDetectorConfiguration) (d *SilenceDetector) {
+	// Create
+	d = &SilenceDetector{c: c}
 	d.Reset()
+
+	// Default configuration values
+	if d.c.SilenceMinDuration == 0 {
+		d.c.SilenceMinDuration = time.Second
+	}
+	if d.c.StepDuration == 0 {
+		d.c.StepDuration = 30 * time.Millisecond
+	}
 	return
 }
 
@@ -37,7 +46,7 @@ func (d *SilenceDetector) Add(samples []int32, sampleRate int, silenceMaxAudioLe
 	*d.samples = append(*d.samples, samples...)
 
 	// Get number of samples per audio level analysis
-	var audioLevelAnalysisSamplesCount = int(math.Floor(float64(sampleRate) * d.o.AnalysisDuration.Seconds()))
+	var audioLevelAnalysisSamplesCount = int(math.Floor(float64(sampleRate) * d.c.StepDuration.Seconds()))
 
 	// Get number of processed samples
 	var processedSamplesCount = len(*d.audioLevels) * audioLevelAnalysisSamplesCount
@@ -106,7 +115,7 @@ func (d *SilenceDetector) Add(samples []int32, sampleRate int, silenceMaxAudioLe
 // processSilencesInTheMiddle processes silences in the middle
 func (d *SilenceDetector) processSilencesInTheMiddle(audioLevelAnalysisSamplesCount, i, silencesCount int, validSamples *[][]int32) {
 	// Too many silences, we have valid samples!
-	if time.Duration(silencesCount)*d.o.AnalysisDuration >= d.o.SilenceMinDuration {
+	if time.Duration(silencesCount)*d.c.StepDuration >= d.c.SilenceMinDuration {
 		// Keep 1 silence at the end
 		end := (i - silencesCount) * audioLevelAnalysisSamplesCount
 
