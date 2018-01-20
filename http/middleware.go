@@ -73,7 +73,7 @@ type RouterMiddleware func(httprouter.Handle) httprouter.Handle
 func handleBasicAuth(username, password string, rw http.ResponseWriter, r *http.Request) bool {
 	if len(username) > 0 && len(password) > 0 {
 		if u, p, ok := r.BasicAuth(); !ok || u != username || p != password {
-			rw.Header().Set("WWW-Authenticate", "Basic Realm")
+			rw.Header().Set("WWW-Authenticate", "Basic Realm=Please enter your credentials")
 			rw.WriteHeader(http.StatusUnauthorized)
 			return true
 		}
