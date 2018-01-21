@@ -4,6 +4,8 @@ import (
 	"context"
 	"os"
 
+	"path/filepath"
+
 	"github.com/asticode/go-astitools/io"
 )
 
@@ -20,6 +22,16 @@ func Copy(ctx context.Context, src, dst string) (err error) {
 		return
 	}
 	defer srcFile.Close()
+
+	// Check context
+	if err = ctx.Err(); err != nil {
+		return
+	}
+
+	// Create the destination folder
+	if err = os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+		return
+	}
 
 	// Check context
 	if err = ctx.Err(); err != nil {
