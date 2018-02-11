@@ -24,3 +24,13 @@ func Int64(i int64) *int64 {
 func Str(i string) *string {
 	return &i
 }
+
+// UInt8 transforms a uint8 into a *uint8
+func UInt8(i uint8) *uint8 {
+	return &i
+}
+
+// UInt32 transforms a uint32 into a *uint32
+func UInt32(i uint32) *uint32 {
+	return &i
+}

@@ -1,13 +1,12 @@
 package astibits
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func testHamming84Decode(i uint8) (o uint8, err error) {
+func testHamming84Decode(i uint8) (o uint8, ok bool) {
 	p1, d1, p2, d2, p3, d3, p4, d4 := i>>7&0x1, i>>6&0x1, i>>5&0x1, i>>4&0x1, i>>3&0x1, i>>2&0x1, i>>1&0x1, i&0x1
 	testA := p1^d1^d3^d4 > 0
 	testB := d1^p2^d2^d4 > 0
@@ -16,7 +15,6 @@ func testHamming84Decode(i uint8) (o uint8, err error) {
 	if testA && testB && testC {
 		// p4 may be incorrect
 	} else if testD && (!testA || !testB || !testC) {
-		err = fmt.Errorf("hamming 8/4 decode of %.8b failed", i)
 		return
 	} else {
 		if !testA && testB && testC {
@@ -40,17 +38,18 @@ func testHamming84Decode(i uint8) (o uint8, err error) {
 		}
 	}
 	o = uint8(d4<<3 | d3<<2 | d2<<1 | d1)
+	ok = true
 	return
 }
 
 func TestHamming84Decode(t *testing.T) {
 	for i := 0; i < 256; i++ {
-		v, errV := Hamming84Decode(uint8(i))
-		e, errE := testHamming84Decode(uint8(i))
-		if errE != nil {
-			assert.Error(t, errV)
+		v, okV := Hamming84Decode(uint8(i))
+		e, okE := testHamming84Decode(uint8(i))
+		if !okE {
+			assert.False(t, okV)
 		} else {
-			assert.NoError(t, errV)
+			assert.True(t, okV)
 			assert.Equal(t, e, v)
 		}
 	}
