@@ -1,6 +1,7 @@
 package astitime
 
 import (
+	"bytes"
 	"strconv"
 	"time"
 )
@@ -18,7 +19,7 @@ func (t *Timestamp) UnmarshalJSON(text []byte) error {
 // UnmarshalText implements the TextUnmarshaler interface
 func (t *Timestamp) UnmarshalText(text []byte) (err error) {
 	var i int
-	if i, err = strconv.Atoi(string(text)); err != nil {
+	if i, err = strconv.Atoi(string(bytes.Trim(text, "\""))); err != nil {
 		return
 	}
 	t.Time = time.Unix(int64(i), 0)
