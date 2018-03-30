@@ -11,17 +11,27 @@ import (
 
 // Copy is a cross partitions cancellable copy
 func Copy(ctx context.Context, src, dst string) (err error) {
+	var (
+		srcFile  *os.File
+		dstFile  *os.File
+		srcStats os.FileInfo
+	)
+
 	// Check context
 	if err = ctx.Err(); err != nil {
 		return
 	}
 
 	// Open the source file
-	srcFile, err := os.Open(src)
-	if err != nil {
+	if srcFile, err = os.Open(src); err != nil {
 		return
 	}
 	defer srcFile.Close()
+
+	// Get the file stats/mode
+	if srcStats, err = srcFile.Stat(); err != nil {
+		return err
+	}
 
 	// Check context
 	if err = ctx.Err(); err != nil {
@@ -39,11 +49,14 @@ func Copy(ctx context.Context, src, dst string) (err error) {
 	}
 
 	// Create the destination file
-	dstFile, err := os.Create(dst)
-	if err != nil {
+	if dstFile, err = os.Create(dst); err != nil {
 		return
 	}
 	defer dstFile.Close()
+
+	if err = dstFile.Chmod(srcStats.Mode()); err != nil {
+		return
+	}
 
 	// Check context
 	if err = ctx.Err(); err != nil {
@@ -51,6 +64,9 @@ func Copy(ctx context.Context, src, dst string) (err error) {
 	}
 
 	// Copy the content
-	_, err = astiio.Copy(ctx, srcFile, dstFile)
+	if _, err = astiio.Copy(ctx, srcFile, dstFile); err != nil {
+		return
+	}
+
 	return
 }
