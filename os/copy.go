@@ -54,7 +54,8 @@ func Copy(ctx context.Context, src, dst string) (err error) {
 	}
 	defer dstFile.Close()
 
-	if err = dstFile.Chmod(srcStats.Mode()); err != nil {
+	// Chmod using os.chmod instead of file.Chmod
+	if err = os.Chmod(dst, srcStats.Mode()); err != nil {
 		return
 	}
 
