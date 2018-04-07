@@ -1,7 +1,14 @@
 package astiptr
 
+import "time"
+
 // Bool transforms a bool into a *bool
 func Bool(i bool) *bool {
+	return &i
+}
+
+// Duration transforms a time.Duration into a *time.Duration
+func Duration(i time.Duration) *time.Duration {
 	return &i
 }
 
