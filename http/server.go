@@ -21,7 +21,12 @@ func Serve(ctx context.Context, h http.Handler, fn func(a net.Addr)) (err error)
 	// Create server
 	astilog.Debugf("astihttp: serving on %s", l.Addr())
 	srv := &http.Server{Handler: h}
-	defer srv.Shutdown(ctx)
+	defer func() {
+		astilog.Debugf("astihttp: shutting down server on %s", l.Addr())
+		if err := srv.Shutdown(ctx); err != nil {
+			astilog.Error(errors.Wrapf(err, "astihttp: shutting down server on %s failed", l.Addr()))
+		}
+	}()
 
 	// Serve
 	var chanDone = make(chan error)
