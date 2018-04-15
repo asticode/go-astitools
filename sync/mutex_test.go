@@ -9,7 +9,7 @@ import (
 )
 
 func TestRWMutex_IsDeadlocked(t *testing.T) {
-	var m = astisync.NewRWMutex("test")
+	var m = astisync.NewRWMutex("test", false)
 	d, _ := m.IsDeadlocked(time.Millisecond)
 	assert.False(t, d)
 	m.Lock()

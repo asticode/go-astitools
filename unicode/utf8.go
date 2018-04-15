@@ -4,8 +4,8 @@ import (
 	"unicode/utf8"
 )
 
-// CleanUTF8Chars cleans UTF8 chars
-func CleanUTF8Chars(i []byte) (o []byte) {
+// StripUTF8Chars strips UTF8 chars
+func StripUTF8Chars(i []byte) (o []byte) {
 	buf := i
 	for len(buf) > 0 {
 		r, size := utf8.DecodeRune(buf)

@@ -9,10 +9,10 @@ import (
 	"github.com/pkg/errors"
 )
 
-func Serve(ctx context.Context, h http.Handler, fn func(a net.Addr)) (err error) {
+func Serve(ctx context.Context, h http.Handler, addr string, fn func(a net.Addr)) (err error) {
 	// Create listener
 	var l net.Listener
-	if l, err = net.Listen("tcp", "127.0.0.1:"); err != nil {
+	if l, err = net.Listen("tcp", addr); err != nil {
 		err = errors.Wrap(err, "astihttp: net.Listen failed")
 		return
 	}
@@ -37,7 +37,9 @@ func Serve(ctx context.Context, h http.Handler, fn func(a net.Addr)) (err error)
 	}()
 
 	// Execute custom callback
-	fn(l.Addr())
+	if fn != nil {
+		fn(l.Addr())
+	}
 
 	// Wait for context or chanDone to be done
 	select {

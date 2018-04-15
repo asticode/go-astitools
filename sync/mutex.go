@@ -29,10 +29,10 @@ func NewRWMutex(name string, log bool) *RWMutex {
 // Lock write locks the mutex
 func (m *RWMutex) Lock() {
 	var caller string
+	if _, file, line, ok := runtime.Caller(1); ok {
+		caller = fmt.Sprintf("%s:%d", file, line)
+	}
 	if m.log {
-		if _, file, line, ok := runtime.Caller(1); ok {
-			caller = fmt.Sprintf("%s:%d", file, line)
-		}
 		astilog.Debugf("Requesting lock for %s at %s", m.name, caller)
 	}
 	m.mutex.Lock()
@@ -53,10 +53,10 @@ func (m *RWMutex) Unlock() {
 // RLock read locks the mutex
 func (m *RWMutex) RLock() {
 	var caller string
+	if _, file, line, ok := runtime.Caller(1); ok {
+		caller = fmt.Sprintf("%s:%d", file, line)
+	}
 	if m.log {
-		if _, file, line, ok := runtime.Caller(1); ok {
-			caller = fmt.Sprintf("%s:%d", file, line)
-		}
 		astilog.Debugf("Requesting rlock for %s at %s", m.name, caller)
 	}
 	m.mutex.RLock()
