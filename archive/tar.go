@@ -69,6 +69,12 @@ func Untar(ctx context.Context, src, dst string) (err error) {
 }
 
 func createTarFile(ctx context.Context, p string, h *tar.Header, tr *tar.Reader) (err error) {
+	// Sometimes the dir that will contain the file has not yet been processed in the tar ball, therefore we need to create it
+	if err = os.MkdirAll(filepath.Dir(p), DefaultFileMode); err != nil {
+		err = errors.Wrapf(err, "astiarchive: mkdirall %s failed", filepath.Dir(p))
+		return
+	}
+
 	// Open file
 	var f *os.File
 	if f, err = os.OpenFile(p, os.O_TRUNC|os.O_CREATE|os.O_RDWR, h.FileInfo().Mode().Perm()); err != nil {
