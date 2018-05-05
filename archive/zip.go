@@ -90,7 +90,7 @@ func Unzip(ctx context.Context, src, dst string) (err error) {
 	// Open overall reader
 	var r *zip.ReadCloser
 	if r, err = zip.OpenReader(src); err != nil {
-		return errors.Wrapf(err, "opening overall zip reader on %s failed", src)
+		return errors.Wrapf(err, "astiarchive: opening overall zip reader on %s failed", src)
 	}
 	defer r.Close()
 
@@ -117,57 +117,71 @@ func Unzip(ctx context.Context, src, dst string) (err error) {
 	// Create dirs
 	for p, f := range dirs {
 		if err = os.MkdirAll(p, f.FileInfo().Mode().Perm()); err != nil {
-			return errors.Wrapf(err, "mkdirall %s failed", p)
+			return errors.Wrapf(err, "astiarchive: mkdirall %s failed", p)
 		}
 	}
 
 	// Create files
 	for p, f := range files {
-		// Open file reader
-		var fr io.ReadCloser
-		if fr, err = f.Open(); err != nil {
-			return errors.Wrapf(err, "opening zip reader on file %s failed", f.Name)
-		}
-		defer fr.Close()
-
-		// Since dirs don't always come up we make sure the directory of the file exists with default
-		// file mode
-		if err = os.MkdirAll(filepath.Dir(p), DefaultFileMode); err != nil {
-			return errors.Wrapf(err, "mkdirall %s failed", filepath.Dir(p))
-		}
-
-		// Open the file
-		var fl *os.File
-		if fl, err = os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.FileInfo().Mode().Perm()); err != nil {
-			return errors.Wrapf(err, "opening file %s failed", p)
-		}
-		defer fl.Close()
-
-		// Copy
-		if _, err = astiio.Copy(ctx, fr, fl); err != nil {
-			return errors.Wrapf(err, "copying %s into %s failed", f.Name, p)
+		if err = createZipFile(ctx, f, p); err != nil {
+			return errors.Wrapf(err, "astiarchive: creating zip file into %s failed", p)
 		}
 	}
 
 	// Create symlinks
 	for p, f := range symlinks {
-		// Open file reader
-		var fr io.ReadCloser
-		if fr, err = f.Open(); err != nil {
-			return errors.Wrapf(err, "opening zip reader on file %s failed", f.Name)
+		if err = createZipSymlink(f, p); err != nil {
+			return errors.Wrapf(err, "astiarchive: creating zip symlink into %s failed", p)
 		}
-		defer fr.Close()
+	}
+	return
+}
 
-		// If file is a symlink we retrieve the target path that is in the content of the file
-		var b []byte
-		if b, err = ioutil.ReadAll(fr); err != nil {
-			return errors.Wrapf(err, "ioutil.Readall on %s failed", f.Name)
-		}
+func createZipFile(ctx context.Context, f *zip.File, p string) (err error) {
+	// Open file reader
+	var fr io.ReadCloser
+	if fr, err = f.Open(); err != nil {
+		return errors.Wrapf(err, "astiarchive: opening zip reader on file %s failed", f.Name)
+	}
+	defer fr.Close()
 
-		// Create the symlink
-		if err = os.Symlink(string(b), p); err != nil {
-			return errors.Wrapf(err, "creating symlink from %s to %s failed", string(b), p)
-		}
+	// Since dirs don't always come up we make sure the directory of the file exists with default
+	// file mode
+	if err = os.MkdirAll(filepath.Dir(p), DefaultFileMode); err != nil {
+		return errors.Wrapf(err, "astiarchive: mkdirall %s failed", filepath.Dir(p))
+	}
+
+	// Open the file
+	var fl *os.File
+	if fl, err = os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.FileInfo().Mode().Perm()); err != nil {
+		return errors.Wrapf(err, "astiarchive: opening file %s failed", p)
+	}
+	defer fl.Close()
+
+	// Copy
+	if _, err = astiio.Copy(ctx, fr, fl); err != nil {
+		return errors.Wrapf(err, "astiarchive: copying %s into %s failed", f.Name, p)
+	}
+	return
+}
+
+func createZipSymlink(f *zip.File, p string) (err error) {
+	// Open file reader
+	var fr io.ReadCloser
+	if fr, err = f.Open(); err != nil {
+		return errors.Wrapf(err, "astiarchive: opening zip reader on file %s failed", f.Name)
+	}
+	defer fr.Close()
+
+	// If file is a symlink we retrieve the target path that is in the content of the file
+	var b []byte
+	if b, err = ioutil.ReadAll(fr); err != nil {
+		return errors.Wrapf(err, "astiarchive: ioutil.Readall on %s failed", f.Name)
+	}
+
+	// Create the symlink
+	if err = os.Symlink(string(b), p); err != nil {
+		return errors.Wrapf(err, "astiarchive: creating symlink from %s to %s failed", string(b), p)
 	}
 	return
 }
