@@ -5,33 +5,34 @@ import (
 	"os/signal"
 	"syscall"
 
+	"sync"
+
 	"github.com/asticode/go-astilog"
 )
 
 // Worker represents an object capable of blocking, handling signals and stopping
 type Worker struct {
 	channelQuit chan bool
+	os          sync.Once
+	ow          sync.Once
 }
 
 // NewWorker builds a new worker
 func NewWorker() *Worker {
-	astilog.Info("Starting Worker...")
+	astilog.Info("astiworker: starting worker...")
 	return &Worker{channelQuit: make(chan bool)}
-}
-
-// Close closes the worker
-func (w Worker) Close() {
-	astilog.Info("Closing Worker...")
 }
 
 // HandleSignals handles signals
 func (w Worker) HandleSignals() {
 	ch := make(chan os.Signal, 1)
-	signal.Notify(ch, syscall.SIGABRT, syscall.SIGKILL, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTERM)
+	signal.Notify(ch)
 	go func() {
 		for s := range ch {
-			astilog.Infof("Received signal %s", s)
-			w.Stop()
+			astilog.Infof("astiworker: received signal %s", s)
+			if s == syscall.SIGABRT || s == syscall.SIGKILL || s == syscall.SIGINT || s == syscall.SIGQUIT || s == syscall.SIGTERM {
+				w.Stop()
+			}
 			return
 		}
 	}()
@@ -39,18 +40,16 @@ func (w Worker) HandleSignals() {
 
 // Stop stops the Worker
 func (w *Worker) Stop() {
-	astilog.Info("Stopping Worker...")
-	if w.channelQuit != nil {
+	w.os.Do(func() {
+		astilog.Info("astiworker: stopping worker...")
 		close(w.channelQuit)
-		w.channelQuit = nil
-	}
+	})
 }
 
 // Wait is a blocking pattern
 func (w *Worker) Wait() {
-	astilog.Info("Worker is now waiting...")
-	if w.channelQuit == nil {
-		return
-	}
-	<-w.channelQuit
+	w.ow.Do(func() {
+		astilog.Info("astiworker: worker is now waiting...")
+		<-w.channelQuit
+	})
 }
