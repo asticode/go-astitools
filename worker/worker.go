@@ -42,7 +42,6 @@ func (w *Worker) HandleSignals() {
 			if s == syscall.SIGABRT || s == syscall.SIGKILL || s == syscall.SIGINT || s == syscall.SIGQUIT || s == syscall.SIGTERM {
 				w.Stop()
 			}
-			return
 		}
 	}()
 }
