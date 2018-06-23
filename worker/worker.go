@@ -1,18 +1,13 @@
 package astiworker
 
 import (
+	"context"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 
-	"context"
-
-	"sync"
-
-	"net/http"
-
 	"github.com/asticode/go-astilog"
-	"github.com/pkg/errors"
 )
 
 // Worker represents an object capable of blocking, handling signals and stopping
@@ -61,44 +56,4 @@ func (w *Worker) Wait() {
 		astilog.Info("astiworker: worker is now waiting...")
 		w.wg.Wait()
 	})
-}
-
-// Serve spawns a server
-func (w *Worker) Serve(addr string, h http.Handler) {
-	// Create server
-	s := &http.Server{Addr: addr, Handler: h}
-
-	// Make sure to increment the waiting group
-	w.wg.Add(1)
-
-	// Execute the rest in a goroutine
-	astilog.Infof("astiworker: serving on %s", addr)
-	go func() {
-		// Serve
-		var chanDone = make(chan error)
-		go func() {
-			if err := s.ListenAndServe(); err != nil {
-				chanDone <- err
-			}
-		}()
-
-		// Wait for context or chanDone to be done
-		select {
-		case <-w.ctx.Done():
-			if w.ctx.Err() != context.Canceled {
-				astilog.Error(errors.Wrap(w.ctx.Err(), "astiworker: context error"))
-			}
-		case err := <-chanDone:
-			if err != nil {
-				astilog.Error(errors.Wrap(err, "astiworker: serving failed"))
-			}
-		}
-
-		// Shutdown
-		astilog.Debugf("astiworker: shutting down server on %s", addr)
-		if err := s.Shutdown(context.Background()); err != nil {
-			astilog.Error(errors.Wrapf(err, "astiworker: shutting down server on %s failed", addr))
-		}
-		w.wg.Done()
-	}()
 }
