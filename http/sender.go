@@ -50,19 +50,24 @@ func NewSender(o SenderOptions) (s *Sender) {
 	return
 }
 
-// Send sends a new request
+// Send sends a new *http.Request
 func (s *Sender) Send(req *http.Request) (resp *http.Response, err error) {
+	return s.ExecWithRetry(fmt.Sprintf("%s request to %s", req.Method, req.URL), func() (*http.Response, error) { return s.client.Do(req) })
+}
+
+// ExecWithRetry handles retrying when fetching a response
+// name is used for logging purposes only
+func (s *Sender) ExecWithRetry(name string, fn func() (*http.Response, error)) (resp *http.Response, err error) {
 	// Loop
 	// We start at retryMax + 1 so that it runs at least once even if retryMax == 0
-	var n = fmt.Sprintf("%s request to %s", req.Method, req.URL)
 	for retriesLeft := s.retryMax + 1; retriesLeft > 0; retriesLeft-- {
 		// Get request name
-		nr := fmt.Sprintf("%s (%d/%d)", n, s.retryMax-retriesLeft+2, s.retryMax+1)
+		nr := fmt.Sprintf("%s (%d/%d)", name, s.retryMax-retriesLeft+2, s.retryMax+1)
 
 		// Send request
 		var retry bool
 		astilog.Debugf("astihttp: sending %s", nr)
-		if resp, err = s.client.Do(req); err != nil {
+		if resp, err = fn(); err != nil {
 			// If error is temporary, retry
 			if netError, ok := err.(net.Error); ok && netError.Temporary() {
 				astilog.Debugf("astihttp: temporary error when sending %s", nr)
@@ -87,6 +92,6 @@ func (s *Sender) Send(req *http.Request) (resp *http.Response, err error) {
 	}
 
 	// Max retries limit reached
-	err = fmt.Errorf("astihttp: sending %s failed", n)
+	err = fmt.Errorf("astihttp: sending %s failed", name)
 	return
 }
