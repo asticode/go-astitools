@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"time"
 
 	"github.com/asticode/go-astilog"
 	"github.com/asticode/go-astitools/io"
@@ -18,7 +17,9 @@ import (
 type Downloader struct {
 	busyWorkers     int
 	c               *http.Client
-	mw              sync.Mutex
+	cond            *sync.Cond
+	mc              *sync.Mutex // Locks cond
+	mw              *sync.Mutex // Locks busyWorkers
 	numberOfWorkers int
 }
 
@@ -35,11 +36,14 @@ type DownloaderOptions struct {
 func NewDownloader(o DownloaderOptions) (d *Downloader) {
 	d = &Downloader{
 		c:               o.Client,
+		mc:              &sync.Mutex{},
+		mw:              &sync.Mutex{},
 		numberOfWorkers: o.NumberOfWorkers,
 	}
 	if d.c == nil {
 		d.c = &http.Client{}
 	}
+	d.cond = sync.NewCond(d.mc)
 	if d.numberOfWorkers == 0 {
 		d.numberOfWorkers = 1
 	}
@@ -59,6 +63,9 @@ func (d *Downloader) Download(ctx context.Context, srcs []string, fn DownloaderF
 			return
 		}
 
+		// Lock cond here in case a worker finishes between checking the number of busy workers and the if statement
+		d.cond.L.Lock()
+
 		// Check if a worker is available
 		var ok bool
 		d.mw.Lock()
@@ -69,9 +76,11 @@ func (d *Downloader) Download(ctx context.Context, srcs []string, fn DownloaderF
 
 		// No worker is available
 		if !ok {
-			time.Sleep(500 * time.Millisecond)
+			d.cond.Wait()
+			d.cond.L.Unlock()
 			continue
 		}
+		d.cond.L.Unlock()
 
 		// Download
 		go func(idx int) {
@@ -92,6 +101,11 @@ func (d *Downloader) download(ctx context.Context, idx int, src string, fn Downl
 		d.mw.Lock()
 		d.busyWorkers--
 		d.mw.Unlock()
+
+		// Broadcast
+		d.cond.L.Lock()
+		d.cond.Broadcast()
+		d.cond.L.Unlock()
 
 		// Update wait group
 		wg.Done()
