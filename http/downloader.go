@@ -3,6 +3,7 @@ package astihttp
 import (
 	"bytes"
 	"context"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -15,6 +16,7 @@ import (
 
 // Downloader represents a downloader
 type Downloader struct {
+	bp              *sync.Pool
 	busyWorkers     int
 	c               *http.Client
 	cond            *sync.Cond
@@ -24,7 +26,7 @@ type Downloader struct {
 }
 
 // DownloaderFunc represents a downloader func
-type DownloaderFunc func(ctx context.Context, idx int, src string, buf *bytes.Buffer) error
+type DownloaderFunc func(ctx context.Context, idx int, src string, r io.ReadCloser) error
 
 // DownloaderOptions represents downloader options
 type DownloaderOptions struct {
@@ -35,6 +37,7 @@ type DownloaderOptions struct {
 // NewDownloader creates a new downloader
 func NewDownloader(o DownloaderOptions) (d *Downloader) {
 	d = &Downloader{
+		bp:              &sync.Pool{New: func() interface{} { return &bytes.Buffer{} }},
 		c:               o.Client,
 		mc:              &sync.Mutex{},
 		mw:              &sync.Mutex{},
@@ -51,12 +54,12 @@ func NewDownloader(o DownloaderOptions) (d *Downloader) {
 }
 
 // Download downloads in parallel a set of src paths and executes a custom callback on each downloaded buffers
-func (d *Downloader) Download(ctx context.Context, srcs []string, fn DownloaderFunc) (err error) {
+func (d *Downloader) Download(ctx context.Context, paths []string, fn DownloaderFunc) (err error) {
 	// Loop through src paths
 	wg := &sync.WaitGroup{}
-	wg.Add(len(srcs))
+	wg.Add(len(paths))
 	var idx int
-	for idx < len(srcs) {
+	for idx < len(paths) {
 		// Check context
 		if ctx.Err() != nil {
 			err = errors.Wrap(err, "astihttp: context error")
@@ -84,7 +87,7 @@ func (d *Downloader) Download(ctx context.Context, srcs []string, fn DownloaderF
 
 		// Download
 		go func(idx int) {
-			if errR := d.download(ctx, idx, srcs[idx], fn, wg); errR != nil {
+			if errR := d.download(ctx, idx, paths[idx], fn, wg); errR != nil {
 				err = errR
 			}
 		}(idx)
@@ -94,7 +97,31 @@ func (d *Downloader) Download(ctx context.Context, srcs []string, fn DownloaderF
 	return
 }
 
-func (d *Downloader) download(ctx context.Context, idx int, src string, fn DownloaderFunc, wg *sync.WaitGroup) (err error) {
+type readCloser struct {
+	b  *bytes.Buffer
+	bp *sync.Pool
+}
+
+func newReadCloser(b *bytes.Buffer, bp *sync.Pool) *readCloser {
+	return &readCloser{
+		b:  b,
+		bp: bp,
+	}
+}
+
+// Read implements the io.Reader interface
+func (c readCloser) Read(p []byte) (n int, err error) {
+	return c.b.Read(p)
+}
+
+// Close implements the io.Closer interface
+func (c readCloser) Close() error {
+	c.b.Reset()
+	c.bp.Put(c.b)
+	return nil
+}
+
+func (d *Downloader) download(ctx context.Context, idx int, path string, fn DownloaderFunc, wg *sync.WaitGroup) (err error) {
 	// Update wait group and worker status
 	defer func() {
 		// Update worker status
@@ -111,25 +138,30 @@ func (d *Downloader) download(ctx context.Context, idx int, src string, fn Downl
 		wg.Done()
 	}()
 
+	// Create buf
+	buf := newReadCloser(d.bp.Get().(*bytes.Buffer), d.bp)
+
 	// Download
-	buf := &bytes.Buffer{}
-	astilog.Debugf("astihttp: downloading %s", src)
-	if err = DownloadInWriter(ctx, d.c, src, buf); err != nil {
-		err = errors.Wrapf(err, "astihttp: downloading %s failed", src)
+	astilog.Debugf("astihttp: downloading %s", path)
+	if err = DownloadInWriter(ctx, d.c, path, buf.b); err != nil {
+		err = errors.Wrapf(err, "astihttp: downloading %s failed", path)
 		return
 	}
 
 	// Custom callback
-	if err = fn(ctx, idx, src, buf); err != nil {
-		err = errors.Wrapf(err, "astihttp: custom callback on %s failed", src)
+	if err = fn(ctx, idx, path, buf); err != nil {
+		err = errors.Wrapf(err, "astihttp: custom callback on %s failed", path)
 		return
 	}
 	return
 }
 
 // DownloadInDirectory downloads in parallel a set of src paths and saves them in a dst directory
-func (d *Downloader) DownloadInDirectory(ctx context.Context, dst string, srcs ...string) error {
-	return d.Download(ctx, srcs, func(ctx context.Context, idx int, src string, buf *bytes.Buffer) (err error) {
+func (d *Downloader) DownloadInDirectory(ctx context.Context, dst string, paths ...string) error {
+	return d.Download(ctx, paths, func(ctx context.Context, idx int, path string, r io.ReadCloser) (err error) {
+		// Make sure to close the reader
+		defer r.Close()
+
 		// Make sure destination directory exists
 		if err = os.MkdirAll(dst, 0700); err != nil {
 			err = errors.Wrapf(err, "astihttp: mkdirall %s failed", dst)
@@ -138,7 +170,7 @@ func (d *Downloader) DownloadInDirectory(ctx context.Context, dst string, srcs .
 
 		// Create destination file
 		var f *os.File
-		dst := filepath.Join(dst, filepath.Base(src))
+		dst := filepath.Join(dst, filepath.Base(path))
 		if f, err = os.Create(dst); err != nil {
 			err = errors.Wrapf(err, "astihttp: creating %s failed", dst)
 			return
@@ -146,10 +178,95 @@ func (d *Downloader) DownloadInDirectory(ctx context.Context, dst string, srcs .
 		defer f.Close()
 
 		// Copy
-		if _, err = astiio.Copy(ctx, buf, f); err != nil {
+		if _, err = astiio.Copy(ctx, r, f); err != nil {
 			err = errors.Wrapf(err, "astihttp: copying content to %s failed", dst)
 			return
 		}
 		return
 	})
+}
+
+type chunk struct {
+	idx  int
+	r    io.ReadCloser
+	path string
+}
+
+// DownloadInWriter downloads in parallel a set of src paths and concatenates them in order in a writer
+func (d *Downloader) DownloadInWriter(ctx context.Context, w io.Writer, paths ...string) error {
+	var cs []chunk
+	var m sync.Mutex // Locks cs
+	var requiredIdx int
+	return d.Download(ctx, paths, func(ctx context.Context, idx int, path string, r io.ReadCloser) (err error) {
+		// Lock
+		m.Lock()
+		defer m.Unlock()
+
+		// Check where to insert chunk
+		var idxInsert = -1
+		for idxChunk := 0; idxChunk < len(cs); idxChunk++ {
+			if idx < cs[idxChunk].idx {
+				idxInsert = idxChunk
+				break
+			}
+		}
+
+		// Create chunk
+		c := chunk{
+			idx:  idx,
+			path: path,
+			r:    r,
+		}
+
+		// Add chunk
+		if idxInsert > -1 {
+			cs = append(cs[:idxInsert], append([]chunk{c}, cs[idxInsert:]...)...)
+		} else {
+			cs = append(cs, c)
+		}
+
+		// Loop through chunks
+		for idxChunk := 0; idxChunk < len(cs); idxChunk++ {
+			// Get chunk
+			c := cs[idxChunk]
+
+			// The chunk should be copied
+			if c.idx == requiredIdx {
+				// Make sure the reader is closed
+				defer c.r.Close()
+
+				// Copy chunk content
+				if _, err = astiio.Copy(ctx, c.r, w); err != nil {
+					err = errors.Wrap(err, "hls_downloader: copying to dst failed")
+					return
+				}
+
+				// Remove chunk
+				requiredIdx++
+				cs = append(cs[:idxChunk], cs[idxChunk+1:]...)
+				idxChunk--
+			}
+		}
+		return
+	})
+}
+
+// DownloadInFile downloads in parallel a set of src paths and concatenates them in order in a writer
+func (d *Downloader) DownloadInFile(ctx context.Context, dst string, paths ...string) (err error) {
+	// Make sure destination directory exists
+	if err = os.MkdirAll(filepath.Dir(dst), 0700); err != nil {
+		err = errors.Wrapf(err, "astihttp: mkdirall %s failed", filepath.Dir(dst))
+		return
+	}
+
+	// Create destination file
+	var f *os.File
+	if f, err = os.Create(dst); err != nil {
+		err = errors.Wrapf(err, "astihttp: creating %s failed", dst)
+		return
+	}
+	defer f.Close()
+
+	// Download in writer
+	return d.DownloadInWriter(ctx, f, paths...)
 }
