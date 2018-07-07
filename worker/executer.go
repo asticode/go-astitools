@@ -64,15 +64,15 @@ func (w *Worker) Exec(name string, args ...string) (ExecHandler, error) {
 		return nil, err
 	}
 
-	// Make sure to increment the waiting group
-	w.wg.Add(1)
+	// Create task
+	t := w.NewTask()
 
 	// Wait
 	go func() {
 		h.err = cmd.Wait()
 		h.cancel()
 		astilog.Infof("astiworker: status is now %s for %s", h.Status(), n)
-		w.wg.Done()
+		t.Done()
 	}()
 	return h, nil
 }

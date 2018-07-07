@@ -60,5 +60,10 @@ func (w *Worker) Wait() {
 
 // NewTask creates a new task
 func (w *Worker) NewTask() *Task {
-	return newTask(w.ctx, w.wg)
+	return newTask(w.wg)
+}
+
+// Context returns the worker's context
+func (w *Worker) Context() context.Context {
+	return w.ctx
 }

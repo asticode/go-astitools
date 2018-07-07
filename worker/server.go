@@ -13,8 +13,8 @@ func (w *Worker) Serve(addr string, h http.Handler) {
 	// Create server
 	s := &http.Server{Addr: addr, Handler: h}
 
-	// Make sure to increment the waiting group
-	w.wg.Add(1)
+	// Create task
+	t := w.NewTask()
 
 	// Execute the rest in a goroutine
 	astilog.Infof("astiworker: serving on %s", addr)
@@ -44,6 +44,8 @@ func (w *Worker) Serve(addr string, h http.Handler) {
 		if err := s.Shutdown(context.Background()); err != nil {
 			astilog.Error(errors.Wrapf(err, "astiworker: shutting down server on %s failed", addr))
 		}
-		w.wg.Done()
+
+		// Task is done
+		t.Done()
 	}()
 }
