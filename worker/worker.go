@@ -57,3 +57,8 @@ func (w *Worker) Wait() {
 		w.wg.Wait()
 	})
 }
+
+// NewTask creates a new task
+func (w *Worker) NewTask() *Task {
+	return newTask(w.ctx, w.wg)
+}
