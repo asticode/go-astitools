@@ -7,16 +7,25 @@ import (
 	"github.com/pkg/errors"
 )
 
+// ConfigurationConsumer represents a consumer configuration
+type ConfigurationConsumer struct {
+	AMQP        astiamqp.ConfigurationConsumer
+	WorkerCount int
+}
+
 // Consume consumes AMQP events
-func (w *Worker) Consume(a *astiamqp.AMQP, c astiamqp.ConfigurationConsumer, workerCount int) (err error) {
+func (w *Worker) Consume(a *astiamqp.AMQP, cs ...ConfigurationConsumer) (err error) {
 	// Create task
 	t := w.NewTask()
 
-	// Add consumers
-	for idx := 0; idx < int(math.Max(1, float64(workerCount))); idx++ {
-		if err = a.AddConsumer(c); err != nil {
-			err = errors.Wrapf(err, "main: adding consumer #%d with conf %+v failed", idx+1, c)
-			return
+	// Loop through configurations
+	for idxConf, c := range cs {
+		// Loop through workers
+		for idxWorker := 0; idxWorker < int(math.Max(1, float64(c.WorkerCount))); idxWorker++ {
+			if err = a.AddConsumer(c.AMQP); err != nil {
+				err = errors.Wrapf(err, "main: adding consumer #%d for conf #%d %+v failed", idxConf+1, idxWorker+1, c)
+				return
+			}
 		}
 	}
 
