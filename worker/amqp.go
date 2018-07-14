@@ -23,7 +23,7 @@ func (w *Worker) Consume(a *astiamqp.AMQP, cs ...ConfigurationConsumer) (err err
 		// Loop through workers
 		for idxWorker := 0; idxWorker < int(math.Max(1, float64(c.WorkerCount))); idxWorker++ {
 			if err = a.AddConsumer(c.AMQP); err != nil {
-				err = errors.Wrapf(err, "main: adding consumer #%d for conf #%d %+v failed", idxConf+1, idxWorker+1, c)
+				err = errors.Wrapf(err, "main: adding consumer #%d for conf #%d %+v failed", idxWorker+1, idxConf+1, c)
 				return
 			}
 		}
