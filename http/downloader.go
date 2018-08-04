@@ -51,13 +51,16 @@ func NewDownloader(o DownloaderOptions) (d *Downloader) {
 // Download downloads in parallel a set of src paths and executes a custom callback on each downloaded buffers
 func (d *Downloader) Download(ctx context.Context, paths []string, fn DownloaderFunc) (err error) {
 	// Loop through src paths
+	m := &sync.Mutex{} // Locks err
 	wg := &sync.WaitGroup{}
 	wg.Add(len(paths))
 	var idx int
 	for idx < len(paths) {
 		// Check context
 		if ctx.Err() != nil {
+			m.Lock()
 			err = errors.Wrap(err, "astihttp: context error")
+			m.Unlock()
 			return
 		}
 
@@ -80,10 +83,20 @@ func (d *Downloader) Download(ctx context.Context, paths []string, fn Downloader
 		}
 		d.cond.L.Unlock()
 
+		// Check error
+		m.Lock()
+		if err != nil {
+			m.Unlock()
+			return
+		}
+		m.Unlock()
+
 		// Download
 		go func(idx int) {
 			if errR := d.download(ctx, idx, paths[idx], fn, wg); errR != nil {
+				m.Lock()
 				err = errR
+				m.Unlock()
 			}
 		}(idx)
 		idx++
@@ -172,11 +185,12 @@ type chunk struct {
 }
 
 // DownloadInWriter downloads in parallel a set of src paths and concatenates them in order in a writer
-func (d *Downloader) DownloadInWriter(ctx context.Context, w io.Writer, paths ...string) error {
+func (d *Downloader) DownloadInWriter(ctx context.Context, w io.Writer, paths ...string) (err error) {
+	// Download
 	var cs []chunk
 	var m sync.Mutex // Locks cs
 	var requiredIdx int
-	return d.Download(ctx, paths, func(ctx context.Context, idx int, path string, r io.ReadCloser) (err error) {
+	err = d.Download(ctx, paths, func(ctx context.Context, idx int, path string, r io.ReadCloser) (err error) {
 		// Lock
 		m.Lock()
 		defer m.Unlock()
@@ -212,11 +226,7 @@ func (d *Downloader) DownloadInWriter(ctx context.Context, w io.Writer, paths ..
 			// The chunk should be copied
 			if c.idx == requiredIdx {
 				// Copy chunk content
-				if _, err = astiio.Copy(ctx, c.r, w); err != nil {
-					c.r.Close()
-					err = errors.Wrap(err, "hls_downloader: copying to dst failed")
-					return
-				}
+				_, err = astiio.Copy(ctx, c.r, w)
 
 				// Make sure the reader is closed
 				c.r.Close()
@@ -225,10 +235,22 @@ func (d *Downloader) DownloadInWriter(ctx context.Context, w io.Writer, paths ..
 				requiredIdx++
 				cs = append(cs[:idxChunk], cs[idxChunk+1:]...)
 				idxChunk--
+
+				// Check error now so that chunk is still removed and reader is closed
+				if err != nil {
+					err = errors.Wrapf(err, "astihttp: copying chunk #%d to dst failed", c.idx)
+					return
+				}
 			}
 		}
 		return
 	})
+
+	// Make sure to close all readers
+	for _, c := range cs {
+		c.r.Close()
+	}
+	return
 }
 
 // DownloadInFile downloads in parallel a set of src paths and concatenates them in order in a writer
