@@ -49,15 +49,19 @@ func NewDownloader(o DownloaderOptions) (d *Downloader) {
 }
 
 // Download downloads in parallel a set of src paths and executes a custom callback on each downloaded buffers
-func (d *Downloader) Download(ctx context.Context, paths []string, fn DownloaderFunc) (err error) {
-	// Loop through src paths
+func (d *Downloader) Download(parentCtx context.Context, paths []string, fn DownloaderFunc) (err error) {
+	// Init
+	ctx, cancel := context.WithCancel(parentCtx)
 	m := &sync.Mutex{} // Locks err
-	wg := &sync.WaitGroup{}
-	wg.Add(len(paths))
+	gwg := &sync.WaitGroup{}
+	gwg.Add(len(paths))
+	lwg := &sync.WaitGroup{}
+
+	// Loop through src paths
 	var idx int
 	for idx < len(paths) {
 		// Check context
-		if ctx.Err() != nil {
+		if parentCtx.Err() != nil {
 			m.Lock()
 			err = errors.Wrap(err, "astihttp: context error")
 			m.Unlock()
@@ -87,23 +91,27 @@ func (d *Downloader) Download(ctx context.Context, paths []string, fn Downloader
 		m.Lock()
 		if err != nil {
 			m.Unlock()
+			lwg.Wait()
 			return
 		}
 		m.Unlock()
 
 		// Download
 		go func(idx int) {
-			if errR := d.download(ctx, idx, paths[idx], fn, wg); errR != nil {
+			lwg.Add(1)
+			if errR := d.download(ctx, idx, paths[idx], fn, gwg); errR != nil {
 				m.Lock()
 				if err == nil {
 					err = errR
 				}
 				m.Unlock()
+				cancel()
 			}
+			lwg.Done()
 		}(idx)
 		idx++
 	}
-	wg.Wait()
+	gwg.Wait()
 	return
 }
 
