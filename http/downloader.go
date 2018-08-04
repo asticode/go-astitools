@@ -1,6 +1,7 @@
 package astihttp
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -15,6 +16,7 @@ import (
 
 // Downloader represents a downloader
 type Downloader struct {
+	bp              *sync.Pool
 	busyWorkers     int
 	cond            *sync.Cond
 	mc              *sync.Mutex // Locks cond
@@ -36,6 +38,7 @@ type DownloaderOptions struct {
 // NewDownloader creates a new downloader
 func NewDownloader(o DownloaderOptions) (d *Downloader) {
 	d = &Downloader{
+		bp:              &sync.Pool{New: func() interface{} { return &bytes.Buffer{} }},
 		mc:              &sync.Mutex{},
 		mw:              &sync.Mutex{},
 		numberOfWorkers: o.NumberOfWorkers,
@@ -115,6 +118,30 @@ func (d *Downloader) Download(parentCtx context.Context, paths []string, fn Down
 	return
 }
 
+type readCloser struct {
+	b  *bytes.Buffer
+	bp *sync.Pool
+}
+
+func newReadCloser(b *bytes.Buffer, bp *sync.Pool) *readCloser {
+	return &readCloser{
+		b:  b,
+		bp: bp,
+	}
+}
+
+// Read implements the io.Reader interface
+func (c readCloser) Read(p []byte) (n int, err error) {
+	return c.b.Read(p)
+}
+
+// Close implements the io.Closer interface
+func (c readCloser) Close() error {
+	c.b.Reset()
+	c.bp.Put(c.b)
+	return nil
+}
+
 func (d *Downloader) download(ctx context.Context, idx int, path string, fn DownloaderFunc, wg *sync.WaitGroup) (err error) {
 	// Update wait group and worker status
 	defer func() {
@@ -143,6 +170,7 @@ func (d *Downloader) download(ctx context.Context, idx int, path string, fn Down
 	if resp, err = d.s.Send(r); err != nil {
 		return errors.Wrapf(err, "astihttp: sending GET request to %s failed", path)
 	}
+	defer resp.Body.Close()
 
 	// Validate status code
 	if resp.StatusCode != http.StatusOK {
@@ -150,8 +178,17 @@ func (d *Downloader) download(ctx context.Context, idx int, path string, fn Down
 		return fmt.Errorf("astihttp: sending GET request to %s returned %d status code", path, resp.StatusCode)
 	}
 
+	// Create buf
+	buf := newReadCloser(d.bp.Get().(*bytes.Buffer), d.bp)
+
+	// Copy body
+	if _, err = astiio.Copy(ctx, resp.Body, buf.b); err != nil {
+		err = errors.Wrap(err, "astihttp: copying resp.Body to buf.b failed")
+		return
+	}
+
 	// Custom callback
-	if err = fn(ctx, idx, path, resp.Body); err != nil {
+	if err = fn(ctx, idx, path, buf); err != nil {
 		err = errors.Wrapf(err, "astihttp: custom callback on %s failed", path)
 		return
 	}
