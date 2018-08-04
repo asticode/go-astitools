@@ -64,9 +64,11 @@ func (s *Sender) Send(req *http.Request) (resp *http.Response, err error) {
 func (s *Sender) ExecWithRetry(name string, fn func() (*http.Response, error)) (resp *http.Response, err error) {
 	// Loop
 	// We start at retryMax + 1 so that it runs at least once even if retryMax == 0
+	tries := 0
 	for retriesLeft := s.retryMax + 1; retriesLeft > 0; retriesLeft-- {
 		// Get request name
 		nr := fmt.Sprintf("%s (%d/%d)", name, s.retryMax-retriesLeft+2, s.retryMax+1)
+		tries++
 
 		// Send request
 		var retry bool
@@ -96,6 +98,6 @@ func (s *Sender) ExecWithRetry(name string, fn func() (*http.Response, error)) (
 	}
 
 	// Max retries limit reached
-	err = fmt.Errorf("astihttp: sending %s failed", name)
+	err = fmt.Errorf("astihttp: sending %s failed after %d tries", name, tries)
 	return
 }
