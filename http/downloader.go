@@ -95,7 +95,9 @@ func (d *Downloader) Download(ctx context.Context, paths []string, fn Downloader
 		go func(idx int) {
 			if errR := d.download(ctx, idx, paths[idx], fn, wg); errR != nil {
 				m.Lock()
-				err = errR
+				if err == nil {
+					err = errR
+				}
 				m.Unlock()
 			}
 		}(idx)
