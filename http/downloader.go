@@ -174,7 +174,6 @@ func (d *Downloader) download(ctx context.Context, idx int, path string, fn Down
 
 	// Validate status code
 	if resp.StatusCode != http.StatusOK {
-		resp.Body.Close()
 		return fmt.Errorf("astihttp: sending GET request to %s returned %d status code", path, resp.StatusCode)
 	}
 
@@ -183,14 +182,12 @@ func (d *Downloader) download(ctx context.Context, idx int, path string, fn Down
 
 	// Copy body
 	if _, err = astiio.Copy(ctx, resp.Body, buf.b); err != nil {
-		err = errors.Wrap(err, "astihttp: copying resp.Body to buf.b failed")
-		return
+		return errors.Wrap(err, "astihttp: copying resp.Body to buf.b failed")
 	}
 
 	// Custom callback
 	if err = fn(ctx, idx, path, buf); err != nil {
-		err = errors.Wrapf(err, "astihttp: custom callback on %s failed", path)
-		return
+		return errors.Wrapf(err, "astihttp: custom callback on %s failed", path)
 	}
 	return
 }
