@@ -19,10 +19,14 @@ type Sender struct {
 }
 
 // RetryFunc is a function that decides whether to retry the request
-type RetryFunc func(resp *http.Response) bool
+type RetryFunc func(name string, resp *http.Response) bool
 
-func defaultRetryFunc(resp *http.Response) bool {
-	return resp.StatusCode >= http.StatusInternalServerError
+func defaultRetryFunc(name string, resp *http.Response) bool {
+	if resp.StatusCode >= http.StatusInternalServerError {
+		astilog.Debugf("astihttp: invalid status code %d when sending %s", resp.StatusCode, name)
+		return true
+	}
+	return false
 }
 
 // SenderOptions represents sender options
@@ -79,7 +83,7 @@ func (s *Sender) ExecWithRetry(name string, fn func() (*http.Response, error)) (
 		}
 
 		// Retry
-		if retry || s.retryFunc(resp) {
+		if retry || s.retryFunc(nr, resp) {
 			if retriesLeft > 1 {
 				astilog.Debugf("astihttp: sleeping %s and retrying... (%d retries left)", s.retrySleep, retriesLeft-1)
 				time.Sleep(s.retrySleep)
