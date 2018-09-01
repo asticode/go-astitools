@@ -54,5 +54,6 @@ func TestCopy(t *testing.T) {
 	ctx = context.Background()
 	nw, err = astiio.Copy(ctx, r2, w)
 	assert.NoError(t, err)
+	assert.Equal(t, int64(10), nw)
 	assert.Equal(t, "testiocopy", w.String())
 }
