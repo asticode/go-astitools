@@ -14,6 +14,7 @@ type CtxQueue struct {
 }
 
 type ctxQueueMessage struct {
+	c         *sync.Cond
 	ctxIsDone bool
 	p         interface{}
 }
@@ -44,6 +45,13 @@ func (q *CtxQueue) Start(ctx context.Context, fn func(p interface{})) {
 
 				// Handle payload
 				fn(m.p)
+
+				// Broadcast the fact that the process is done
+				if m.c != nil {
+					m.c.L.Lock()
+					m.c.Broadcast()
+					m.c.L.Unlock()
+				}
 			}
 		}
 	})
@@ -57,8 +65,32 @@ func (q *CtxQueue) handleCtx(ctx context.Context) {
 
 // Send sends a message in the queue
 func (q *CtxQueue) Send(p interface{}) {
+	// Context is done
 	if d := atomic.LoadUint32(&q.ctxIsDone); d == 1 {
 		return
 	}
+
+	// Send message
 	q.c <- ctxQueueMessage{p: p}
+}
+
+// SendAndWait sends a message in the queue and waits for the end of its handling
+func (q *CtxQueue) SendAndWait(p interface{}) {
+	// Context is done
+	if d := atomic.LoadUint32(&q.ctxIsDone); d == 1 {
+		return
+	}
+
+	// Create cond
+	c := sync.NewCond(&sync.Mutex{})
+	c.L.Lock()
+
+	// Send message
+	q.c <- ctxQueueMessage{
+		c: c,
+		p: p,
+	}
+
+	// Wait for handling to be done
+	c.Wait()
 }
