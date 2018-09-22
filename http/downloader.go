@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/asticode/go-astilog"
 	"github.com/asticode/go-astitools/io"
 	"github.com/pkg/errors"
 )
@@ -19,6 +20,7 @@ type Downloader struct {
 	bp              *sync.Pool
 	busyWorkers     int
 	cond            *sync.Cond
+	ignoreErrors    bool
 	mc              *sync.Mutex // Locks cond
 	mw              *sync.Mutex // Locks busyWorkers
 	numberOfWorkers int
@@ -31,6 +33,7 @@ type DownloaderFunc func(ctx context.Context, idx int, src string, r io.ReadClos
 
 // DownloaderOptions represents downloader options
 type DownloaderOptions struct {
+	IgnoreErrors    bool
 	NumberOfWorkers int
 	Sender          SenderOptions
 }
@@ -39,6 +42,7 @@ type DownloaderOptions struct {
 func NewDownloader(o DownloaderOptions) (d *Downloader) {
 	d = &Downloader{
 		bp:              &sync.Pool{New: func() interface{} { return &bytes.Buffer{} }},
+		ignoreErrors:    o.IgnoreErrors,
 		mc:              &sync.Mutex{},
 		mw:              &sync.Mutex{},
 		numberOfWorkers: o.NumberOfWorkers,
@@ -173,16 +177,19 @@ func (d *Downloader) download(ctx context.Context, idx int, path string, fn Down
 	defer resp.Body.Close()
 
 	// Validate status code
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("astihttp: sending GET request to %s returned %d status code", path, resp.StatusCode)
-	}
-
-	// Create buf
 	buf := newReadCloser(d.bp.Get().(*bytes.Buffer), d.bp)
-
-	// Copy body
-	if _, err = astiio.Copy(ctx, resp.Body, buf.b); err != nil {
-		return errors.Wrap(err, "astihttp: copying resp.Body to buf.b failed")
+	if resp.StatusCode != http.StatusOK {
+		errS := fmt.Errorf("astihttp: sending GET request to %s returned %d status code", path, resp.StatusCode)
+		if !d.ignoreErrors {
+			return errS
+		} else {
+			astilog.Error(errors.Wrap(errS, "astihttp: ignoring error"))
+		}
+	} else {
+		// Copy body
+		if _, err = astiio.Copy(ctx, resp.Body, buf.b); err != nil {
+			return errors.Wrap(err, "astihttp: copying resp.Body to buf.b failed")
+		}
 	}
 
 	// Custom callback
