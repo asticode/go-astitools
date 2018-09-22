@@ -62,7 +62,7 @@ type RegulatorProcess struct {
 	c                 *sync.Cond
 	cancel            context.CancelFunc
 	ctx               context.Context
-	doneFunc         func()
+	doneFunc          func()
 	subprocessesWg    *sync.WaitGroup
 	subprocessesCount int64
 }
@@ -70,7 +70,7 @@ type RegulatorProcess struct {
 func newRegulatorProcess(ctx context.Context, doneFunc func(), subprocessesWg *sync.WaitGroup) (p *RegulatorProcess) {
 	p = &RegulatorProcess{
 		c:              sync.NewCond(&sync.Mutex{}),
-		doneFunc:      doneFunc,
+		doneFunc:       doneFunc,
 		subprocessesWg: subprocessesWg,
 	}
 	p.c.L.Lock()
