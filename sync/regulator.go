@@ -62,7 +62,7 @@ type RegulatorProcess struct {
 	c                 *sync.Cond
 	cancel            context.CancelFunc
 	ctx               context.Context
-	doneFuncs         []func()
+	doneFunc         func()
 	subprocessesWg    *sync.WaitGroup
 	subprocessesCount int64
 }
@@ -70,7 +70,7 @@ type RegulatorProcess struct {
 func newRegulatorProcess(ctx context.Context, doneFunc func(), subprocessesWg *sync.WaitGroup) (p *RegulatorProcess) {
 	p = &RegulatorProcess{
 		c:              sync.NewCond(&sync.Mutex{}),
-		doneFuncs:      []func(){doneFunc},
+		doneFunc:      doneFunc,
 		subprocessesWg: subprocessesWg,
 	}
 	p.c.L.Lock()
@@ -79,21 +79,22 @@ func newRegulatorProcess(ctx context.Context, doneFunc func(), subprocessesWg *s
 }
 
 // AddSubprocesses adds subprocesses to the process
-func (p *RegulatorProcess) AddSubprocesses(delta int, doneFunc func()) {
+func (p *RegulatorProcess) AddSubprocesses(delta int) {
 	// Make sure we keep track of all subprocesses
 	p.subprocessesWg.Add(delta)
 
 	// Increment the number of running subprocesses
 	atomic.AddInt64(&p.subprocessesCount, int64(delta))
-
-	// Add done func
-	if doneFunc != nil {
-		p.doneFuncs = append([]func(){doneFunc}, p.doneFuncs...)
-	}
 }
 
 // Wait waits either for one of the children to be finished or for the ctx to be cancelled
 func (p *RegulatorProcess) Wait() {
+	// No subprocesses
+	if c := atomic.LoadInt64(&p.subprocessesCount); c == 0 {
+		p.doneFunc()
+		return
+	}
+
 	// Listen to context
 	go func() {
 		<-p.ctx.Done()
@@ -115,10 +116,8 @@ func (p *RegulatorProcess) SubprocessIsDone() {
 
 	// Decrement the number of running subprocesses
 	if c := atomic.AddInt64(&p.subprocessesCount, -1); c == 0 {
-		// Execute the done funcs
-		for _, f := range p.doneFuncs {
-			f()
-		}
+		// Execute the done func
+		p.doneFunc()
 
 		// Cancel the context so the goroutine is closed
 		p.cancel()
