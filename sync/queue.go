@@ -124,3 +124,10 @@ func (q *CtxQueue) Send(p interface{}, block bool) {
 		c.Wait()
 	}
 }
+
+// Stop stops the queue properly
+func (q *CtxQueue) Stop() {
+	q.ctxIsDone = 0
+	q.hasStarted = 0
+	q.o = &sync.Once{}
+}
