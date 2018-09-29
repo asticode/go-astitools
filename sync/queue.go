@@ -4,6 +4,8 @@ import (
 	"context"
 	"sync"
 	"sync/atomic"
+
+	"github.com/asticode/go-astitools/stat"
 )
 
 // CtxQueue is a queue that can
@@ -15,6 +17,7 @@ type CtxQueue struct {
 	hasStarted uint32
 	o          *sync.Once
 	startC     *sync.Cond
+	waitStat   *astistat.WaitStat
 }
 
 type ctxQueueMessage struct {
@@ -26,9 +29,10 @@ type ctxQueueMessage struct {
 // NewCtxQueue creates a new ctx queue
 func NewCtxQueue() *CtxQueue {
 	return &CtxQueue{
-		c:      make(chan ctxQueueMessage),
-		o:      &sync.Once{},
-		startC: sync.NewCond(&sync.Mutex{}),
+		c:        make(chan ctxQueueMessage),
+		o:        &sync.Once{},
+		startC:   sync.NewCond(&sync.Mutex{}),
+		waitStat: astistat.NewWaitStat(),
 	}
 }
 
@@ -59,10 +63,16 @@ func (q *CtxQueue) Start(fn func(p interface{})) {
 		atomic.StoreUint32(&q.hasStarted, 1)
 		q.startC.L.Unlock()
 
+		// Wait is starting
+		q.waitStat.Add(true)
+
 		// Loop
 		for {
 			select {
 			case m := <-q.c:
+				// Wait is done
+				q.waitStat.Done(true)
+
 				// Check context
 				if m.ctxIsDone {
 					return
@@ -77,6 +87,9 @@ func (q *CtxQueue) Start(fn func(p interface{})) {
 					m.c.Broadcast()
 					m.c.L.Unlock()
 				}
+
+				// Wait is starting
+				q.waitStat.Add(true)
 			}
 		}
 	})
@@ -90,6 +103,7 @@ func (q *CtxQueue) Send(p interface{}, block bool) {
 
 	// Context is done
 	if d := atomic.LoadUint32(&q.ctxIsDone); d == 1 {
+		q.startC.L.Unlock()
 		return
 	}
 
@@ -130,4 +144,14 @@ func (q *CtxQueue) Stop() {
 	q.ctxIsDone = 0
 	q.hasStarted = 0
 	q.o = &sync.Once{}
+}
+
+// AddStats adds queue stats
+func (q *CtxQueue) AddStats(s *astistat.Stater) {
+	// Add wait stat
+	s.AddStat(astistat.StatMetadata{
+		Description: "Percentage of time spent waiting for new message",
+		Label:       "Queue wait",
+		Unit:        "%",
+	}, q.waitStat.StatValueFunc, q.waitStat.Reset)
 }

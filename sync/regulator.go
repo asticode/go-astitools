@@ -4,6 +4,9 @@ import (
 	"context"
 	"sync"
 	"sync/atomic"
+	"time"
+
+	"github.com/asticode/go-astitools/stat"
 )
 
 // Regulator is an object that can keep track of processes which, in turn, keep track of subprocesses.
@@ -19,11 +22,10 @@ type Regulator struct {
 }
 
 // NewRegulator creates a new regulator
-func NewRegulator(parentCtx context.Context, limit int) *Regulator {
+func NewRegulator(limit int) *Regulator {
 	return &Regulator{
 		c:              sync.NewCond(&sync.Mutex{}),
 		limit:          limit,
-		parentCtx:      parentCtx,
 		subprocessesWg: &sync.WaitGroup{},
 	}
 }
@@ -43,6 +45,11 @@ func (r *Regulator) NewProcess() *RegulatorProcess {
 	return newRegulatorProcess(r.parentCtx, r.processIsDone, r.subprocessesWg)
 }
 
+// HandleCtx handles the context
+func (r *Regulator) HandleCtx(ctx context.Context) {
+	r.parentCtx = ctx
+}
+
 // Wait waits for all subprocesses to be finished
 func (r *Regulator) Wait() {
 	r.subprocessesWg.Wait()
@@ -55,6 +62,19 @@ func (r *Regulator) processIsDone() {
 	r.processesCount--
 	r.c.Broadcast()
 	r.c.L.Unlock()
+}
+
+// AddStats adds regulator stats
+func (r *Regulator) AddStats(s *astistat.Stater) {
+	// Add processes count
+	s.AddStat(astistat.StatMetadata{
+		Description: "Number of processes the regulator is currently running",
+		Label:       "Regulator processes",
+	}, func(delta time.Duration) interface{} {
+		r.c.L.Lock()
+		defer r.c.L.Unlock()
+		return r.processesCount
+	}, nil)
 }
 
 // RegulatorProcess is a regulator process
