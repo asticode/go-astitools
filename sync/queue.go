@@ -17,7 +17,7 @@ type CtxQueue struct {
 	hasStarted uint32
 	o          *sync.Once
 	startC     *sync.Cond
-	waitStat   *astistat.WaitStat
+	statListen *astistat.DurationRatioStat
 }
 
 type ctxQueueMessage struct {
@@ -29,10 +29,10 @@ type ctxQueueMessage struct {
 // NewCtxQueue creates a new ctx queue
 func NewCtxQueue() *CtxQueue {
 	return &CtxQueue{
-		c:        make(chan ctxQueueMessage),
-		o:        &sync.Once{},
-		startC:   sync.NewCond(&sync.Mutex{}),
-		waitStat: astistat.NewWaitStat(),
+		c:          make(chan ctxQueueMessage),
+		o:          &sync.Once{},
+		startC:     sync.NewCond(&sync.Mutex{}),
+		statListen: astistat.NewDurationRatioStat(),
 	}
 }
 
@@ -67,14 +67,14 @@ func (q *CtxQueue) Start(fn func(p interface{})) {
 		q.startC.L.Unlock()
 
 		// Wait is starting
-		q.waitStat.Add(true)
+		q.statListen.Add(true)
 
 		// Loop
 		for {
 			select {
 			case m := <-q.c:
 				// Wait is done
-				q.waitStat.Done(true)
+				q.statListen.Done(true)
 
 				// Check context
 				if m.ctxIsDone {
@@ -92,7 +92,7 @@ func (q *CtxQueue) Start(fn func(p interface{})) {
 				}
 
 				// Wait is starting
-				q.waitStat.Add(true)
+				q.statListen.Add(true)
 			}
 		}
 	})
@@ -152,8 +152,8 @@ func (q *CtxQueue) Stop() {
 func (q *CtxQueue) AddStats(s *astistat.Stater) {
 	// Add wait stat
 	s.AddStat(astistat.StatMetadata{
-		Description: "Percentage of time spent waiting for new message",
-		Label:       "Queue wait",
+		Description: "Percentage of time spent listening and waiting for new object",
+		Label:       "Listen ratio",
 		Unit:        "%",
-	}, q.waitStat)
+	}, q.statListen)
 }

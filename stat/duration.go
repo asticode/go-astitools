@@ -5,24 +5,24 @@ import (
 	"time"
 )
 
-// WaitStat is an object capable of computing a wait stat properly
-type WaitStat struct {
+// DurationRatioStat is an object capable of computing a duration ratio stat properly
+type DurationRatioStat struct {
 	d         time.Duration
 	isStarted bool
 	m         *sync.Mutex
 	startedAt map[interface{}]time.Time
 }
 
-// NewWaitStat creates a new wait stat
-func NewWaitStat() *WaitStat {
-	return &WaitStat{
+// NewDurationRatioStat creates a new duration ratio stat
+func NewDurationRatioStat() *DurationRatioStat {
+	return &DurationRatioStat{
 		startedAt: make(map[interface{}]time.Time),
 		m:         &sync.Mutex{},
 	}
 }
 
-// Add adds a new wait
-func (s *WaitStat) Add(k interface{}) {
+// Add starts recording a new duration
+func (s *DurationRatioStat) Add(k interface{}) {
 	s.m.Lock()
 	defer s.m.Unlock()
 	if !s.isStarted {
@@ -31,8 +31,8 @@ func (s *WaitStat) Add(k interface{}) {
 	s.startedAt[k] = time.Now()
 }
 
-// WaitFinished indicates a wait has finished
-func (s *WaitStat) Done(k interface{}) {
+// Done indicates the duration is now done
+func (s *DurationRatioStat) Done(k interface{}) {
 	s.m.Lock()
 	defer s.m.Unlock()
 	if !s.isStarted {
@@ -43,7 +43,7 @@ func (s *WaitStat) Done(k interface{}) {
 }
 
 // Value implements the StatHandler interface
-func (s *WaitStat) Value(delta time.Duration) (o interface{}) {
+func (s *DurationRatioStat) Value(delta time.Duration) (o interface{}) {
 	// Lock
 	s.m.Lock()
 	defer s.m.Unlock()
@@ -65,7 +65,7 @@ func (s *WaitStat) Value(delta time.Duration) (o interface{}) {
 }
 
 // Start implements the StatHandler interface
-func (s *WaitStat) Start() {
+func (s *DurationRatioStat) Start() {
 	s.m.Lock()
 	defer s.m.Unlock()
 	s.d = 0
@@ -74,7 +74,7 @@ func (s *WaitStat) Start() {
 }
 
 // Stop implements the StatHandler interface
-func (s *WaitStat) Stop() {
+func (s *DurationRatioStat) Stop() {
 	s.m.Lock()
 	defer s.m.Unlock()
 	s.isStarted = false
