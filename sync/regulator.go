@@ -70,11 +70,11 @@ func (r *Regulator) AddStats(s *astistat.Stater) {
 	s.AddStat(astistat.StatMetadata{
 		Description: "Number of processes the regulator is currently running",
 		Label:       "Regulator processes",
-	}, func(delta time.Duration) interface{} {
+	}, astistat.StatHandlerWithoutStart(func(delta time.Duration) interface{} {
 		r.c.L.Lock()
 		defer r.c.L.Unlock()
 		return r.processesCount
-	}, nil)
+	}))
 }
 
 // RegulatorProcess is a regulator process

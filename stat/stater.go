@@ -33,16 +33,16 @@ type StatMetadata struct {
 	Unit        string
 }
 
-// StatValueFunc is a method that can compute a stat value
-type StatValueFunc func(delta time.Duration) interface{}
-
-// StatResetFunc is a method that can reset a stat
-type StatResetFunc func()
+// StatHandler represents a stat handler
+type StatHandler interface {
+	Start()
+	Stop()
+	Value(delta time.Duration) interface{}
+}
 
 type stat struct {
-	fnReset StatResetFunc
-	fnValue StatValueFunc
-	m       StatMetadata
+	h StatHandler
+	m StatMetadata
 }
 
 // NewStater creates a new stater
@@ -70,6 +70,11 @@ func (s *Stater) Start(ctx context.Context) {
 		// Reset once
 		s.oStop = &sync.Once{}
 
+		// Start stats
+		for _, v := range s.ss {
+			v.h.Start()
+		}
+
 		// Execute the rest in a go routine
 		go func() {
 			// Create ticker
@@ -91,18 +96,16 @@ func (s *Stater) Start(ctx context.Context) {
 					for _, v := range s.ss {
 						stats = append(stats, Stat{
 							StatMetadata: v.m,
-							Value:        v.fnValue(delta),
+							Value:        v.h.Value(delta),
 						})
 					}
 
 					// Handle stats
 					go s.fn(stats)
 				case <-s.ctx.Done():
-					// Loop through stats
+					// Stop stats
 					for _, v := range s.ss {
-						if v.fnReset != nil {
-							v.fnReset()
-						}
+						v.h.Stop()
 					}
 					return
 				}
@@ -112,11 +115,10 @@ func (s *Stater) Start(ctx context.Context) {
 }
 
 // AddStat adds a stat
-func (s *Stater) AddStat(m StatMetadata, fnValue StatValueFunc, fnReset StatResetFunc) {
+func (s *Stater) AddStat(m StatMetadata, h StatHandler) {
 	s.ss = append(s.ss, stat{
-		fnReset: fnReset,
-		fnValue: fnValue,
-		m:       m,
+		h: h,
+		m: m,
 	})
 }
 
@@ -142,3 +144,15 @@ func (s *Stater) StatsMetadata() (ms []StatMetadata) {
 	}
 	return
 }
+
+// StatHandlerWithoutStart represents a stat handler that doesn't have to start or stop
+type StatHandlerWithoutStart func(delta time.Duration) interface{}
+
+// Start implements the StatHandler interface
+func (h StatHandlerWithoutStart) Start() {}
+
+// Stop implements the StatHandler interface
+func (h StatHandlerWithoutStart) Stop() {}
+
+// Value implements the StatHandler interface
+func (h StatHandlerWithoutStart) Value(delta time.Duration) interface{} { return h(delta) }

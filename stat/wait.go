@@ -7,9 +7,10 @@ import (
 
 // WaitStat is an object capable of computing a wait stat properly
 type WaitStat struct {
-	startedAt map[interface{}]time.Time
 	d         time.Duration
+	isStarted bool
 	m         *sync.Mutex
+	startedAt map[interface{}]time.Time
 }
 
 // NewWaitStat creates a new wait stat
@@ -24,6 +25,9 @@ func NewWaitStat() *WaitStat {
 func (s *WaitStat) Add(k interface{}) {
 	s.m.Lock()
 	defer s.m.Unlock()
+	if !s.isStarted {
+		return
+	}
 	s.startedAt[k] = time.Now()
 }
 
@@ -31,12 +35,15 @@ func (s *WaitStat) Add(k interface{}) {
 func (s *WaitStat) Done(k interface{}) {
 	s.m.Lock()
 	defer s.m.Unlock()
+	if !s.isStarted {
+		return
+	}
 	s.d += time.Now().Sub(s.startedAt[k])
 	delete(s.startedAt, k)
 }
 
-// StatValueFunc is the wait stat value func
-func (s *WaitStat) StatValueFunc(delta time.Duration) (o interface{}) {
+// Value implements the StatHandler interface
+func (s *WaitStat) Value(delta time.Duration) (o interface{}) {
 	// Lock
 	s.m.Lock()
 	defer s.m.Unlock()
@@ -57,7 +64,18 @@ func (s *WaitStat) StatValueFunc(delta time.Duration) (o interface{}) {
 	return
 }
 
-// Reset resets the stat
-func (s *WaitStat) Reset() {
+// Start implements the StatHandler interface
+func (s *WaitStat) Start() {
+	s.m.Lock()
+	defer s.m.Unlock()
 	s.d = 0
+	s.isStarted = true
+	s.startedAt = make(map[interface{}]time.Time)
+}
+
+// Stop implements the StatHandler interface
+func (s *WaitStat) Stop() {
+	s.m.Lock()
+	defer s.m.Unlock()
+	s.isStarted = false
 }

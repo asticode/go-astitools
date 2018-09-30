@@ -57,6 +57,9 @@ func (q *CtxQueue) HandleCtx(ctx context.Context) {
 func (q *CtxQueue) Start(fn func(p interface{})) {
 	// Make sure the queue can only be started once
 	q.o.Do(func() {
+		// Reset ctx
+		atomic.StoreUint32(&q.ctxIsDone, 0)
+
 		// Broadcast
 		q.startC.L.Lock()
 		q.startC.Broadcast()
@@ -141,8 +144,7 @@ func (q *CtxQueue) Send(p interface{}, block bool) {
 
 // Stop stops the queue properly
 func (q *CtxQueue) Stop() {
-	q.ctxIsDone = 0
-	q.hasStarted = 0
+	atomic.StoreUint32(&q.hasStarted, 0)
 	q.o = &sync.Once{}
 }
 
@@ -153,5 +155,5 @@ func (q *CtxQueue) AddStats(s *astistat.Stater) {
 		Description: "Percentage of time spent waiting for new message",
 		Label:       "Queue wait",
 		Unit:        "%",
-	}, q.waitStat.StatValueFunc, q.waitStat.Reset)
+	}, q.waitStat)
 }
