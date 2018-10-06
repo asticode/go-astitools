@@ -85,11 +85,9 @@ func (q *CtxQueue) Start(fn func(p interface{})) {
 				fn(m.p)
 
 				// Broadcast the fact that the process is done
-				if m.c != nil {
-					m.c.L.Lock()
-					m.c.Broadcast()
-					m.c.L.Unlock()
-				}
+				m.c.L.Lock()
+				m.c.Broadcast()
+				m.c.L.Unlock()
 
 				// Wait is starting
 				q.statListen.Add(true)
@@ -98,9 +96,9 @@ func (q *CtxQueue) Start(fn func(p interface{})) {
 	})
 }
 
-// Send sends a message in the queue
+// Send sends a message in the queue and blocks until the message has been fully processed
 // Block indicates whether to block until the message has been fully processed
-func (q *CtxQueue) Send(p interface{}, block bool) {
+func (q *CtxQueue) Send(p interface{}) {
 	// Make sure to lock here
 	q.startC.L.Lock()
 
@@ -124,11 +122,8 @@ func (q *CtxQueue) Send(p interface{}, block bool) {
 	q.startC.L.Unlock()
 
 	// Create cond
-	var c *sync.Cond
-	if block {
-		c = sync.NewCond(&sync.Mutex{})
-		c.L.Lock()
-	}
+	c := sync.NewCond(&sync.Mutex{})
+	c.L.Lock()
 
 	// Send message
 	q.c <- ctxQueueMessage{
@@ -137,9 +132,7 @@ func (q *CtxQueue) Send(p interface{}, block bool) {
 	}
 
 	// Wait for handling to be done
-	if block {
-		c.Wait()
-	}
+	c.Wait()
 }
 
 // Stop stops the queue properly
