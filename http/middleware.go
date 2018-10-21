@@ -69,7 +69,6 @@ type Middleware func(http.Handler) http.Handler
 // RouterMiddleware represents a router middleware
 type RouterMiddleware func(httprouter.Handle) httprouter.Handle
 
-// handleBasicAuth handles basic auth
 func handleBasicAuth(username, password string, rw http.ResponseWriter, r *http.Request) bool {
 	if len(username) > 0 && len(password) > 0 {
 		if u, p, ok := r.BasicAuth(); !ok || u != username || p != password {
@@ -111,7 +110,6 @@ func RouterMiddlewareBasicAuth(username, password string) RouterMiddleware {
 	}
 }
 
-// handleContentType handles content type
 func handleContentType(contentType string, rw http.ResponseWriter) {
 	rw.Header().Set("Content-Type", contentType)
 }
@@ -142,7 +140,38 @@ func RouterMiddlewareContentType(contentType string) RouterMiddleware {
 	}
 }
 
-// handleTimeout handles timeout
+func handleHeaders(vs map[string]string, rw http.ResponseWriter) {
+	for k, v := range vs {
+		rw.Header().Set(k, v)
+	}
+}
+
+// MiddlewareHeaders adds headers to a handler
+func MiddlewareHeaders(vs map[string]string) Middleware {
+	return func(h http.Handler) http.Handler {
+		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			// Add headers
+			handleHeaders(vs, rw)
+
+			// Next handler
+			h.ServeHTTP(rw, r)
+		})
+	}
+}
+
+// RouterMiddlewareHeaders adds headers to a router handler
+func RouterMiddlewareHeaders(vs map[string]string) RouterMiddleware {
+	return func(h httprouter.Handle) httprouter.Handle {
+		return func(rw http.ResponseWriter, r *http.Request, p httprouter.Params) {
+			// Add headers
+			handleHeaders(vs, rw)
+
+			// Next handler
+			h(rw, r, p)
+		}
+	}
+}
+
 func handleTimeout(timeout time.Duration, rw http.ResponseWriter, fn func()) {
 	// Init context
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
