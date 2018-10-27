@@ -48,5 +48,5 @@ func (s *IncrementStat) Value(delta time.Duration) interface{} {
 	defer s.m.Unlock()
 	c := s.c
 	s.c = 0
-	return c
+	return float64(c) / delta.Seconds()
 }
