@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"strconv"
 
+	"fmt"
+
 	"github.com/pkg/errors"
 )
 
@@ -31,6 +33,12 @@ func (r *Rational) Den() int {
 // ToFloat64 returns the rational as a float64
 func (r *Rational) ToFloat64() float64 {
 	return float64(r.num) / float64(r.den)
+}
+
+// MarshalText implements the TextMarshaler interface
+func (r *Rational) MarshalText() (b []byte, err error) {
+	b = []byte(fmt.Sprintf("%d/%d", r.num, r.den))
+	return
 }
 
 // UnmarshalText implements the TextUnmarshaler interface
