@@ -33,21 +33,23 @@ func Copy(ctx context.Context, src, dst string) (err error) {
 
 	// Dir
 	if statSrc.IsDir() {
-		if err = filepath.Walk(src, func(path string, info os.FileInfo, errWalk error) error {
+		if err = filepath.Walk(src, func(path string, info os.FileInfo, errWalk error) (err error) {
 			// Check error
 			if errWalk != nil {
-				return errWalk
+				err = errWalk
+				return
 			}
 
 			// Do not process root
 			if src == path {
-				return nil
+				return
 			}
 
 			// Copy
 			var p = filepath.Join(dst, strings.TrimPrefix(path, filepath.Clean(src)))
-			if errCopy := Copy(ctx, path, p); errCopy != nil {
-				return errors.Wrapf(err, "copying %s to %s failed", path, p)
+			if err = Copy(ctx, path, p); err != nil {
+				err = errors.Wrapf(err, "copying %s to %s failed", path, p)
+				return
 			}
 			return nil
 		}); err != nil {
