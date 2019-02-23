@@ -1,13 +1,15 @@
 package astihttp
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/http"
 	"time"
 
-	"github.com/asticode/go-astilog"
+	astilog "github.com/asticode/go-astilog"
 	"github.com/pkg/errors"
+	"golang.org/x/net/context/ctxhttp"
 )
 
 // Sender represents an object capable of sending http requests
@@ -57,6 +59,11 @@ func NewSender(o SenderOptions) (s *Sender) {
 // Send sends a new *http.Request
 func (s *Sender) Send(req *http.Request) (resp *http.Response, err error) {
 	return s.ExecWithRetry(fmt.Sprintf("%s request to %s", req.Method, req.URL), func() (*http.Response, error) { return s.client.Do(req) })
+}
+
+// SendCtx sends a new *http.Request with a context
+func (s *Sender) SendCtx(ctx context.Context, req *http.Request) (resp *http.Response, err error) {
+	return s.ExecWithRetry(fmt.Sprintf("%s request to %s", req.Method, req.URL), func() (*http.Response, error) { return ctxhttp.Do(ctx, s.client, req) })
 }
 
 // ExecWithRetry handles retrying when fetching a response
