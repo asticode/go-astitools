@@ -7,6 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"fmt"
+
+	"github.com/asticode/go-astilog"
 	"github.com/asticode/go-astitools/defer"
 	"github.com/asticode/go-astitools/io"
 	"github.com/pkg/errors"
@@ -98,9 +101,16 @@ func Copy(ctx context.Context, src, dst string, fn SessionFunc) (err error) {
 	}
 	defer stdin.Close()
 
-	// Run "cat" command
-	if err = s.Start("cat > " + dst); err != nil {
-		err = errors.Wrapf(err, "astissh: cat to %s failed", dst)
+	// Start "scp" command
+	astilog.Debugf("astissh: copying %s to %s", filepath.Base(dst), filepath.Dir(dst))
+	if err = s.Start("scp -qt " + filepath.Dir(dst)); err != nil {
+		err = errors.Wrapf(err, "astissh: scp to %s failed", dst)
+		return
+	}
+
+	// Send metadata
+	if _, err = fmt.Fprintln(stdin, fmt.Sprintf("C%04o", statSrc.Mode().Perm()), statSrc.Size(), filepath.Base(dst)); err != nil {
+		err = errors.Wrapf(err, "astissh: sending metadata failed")
 		return
 	}
 
@@ -110,22 +120,18 @@ func Copy(ctx context.Context, src, dst string, fn SessionFunc) (err error) {
 		return
 	}
 
-	// Cat waits for the newline symbol from stdin to perform writing
-	if _, err = stdin.Write([]byte("\n")); err != nil {
-		err = errors.Wrap(err, "astissh: adding newline symbol failed")
+	// Send close
+	if _, err = fmt.Fprint(stdin, "\x00"); err != nil {
+		err = errors.Wrap(err, "astissh: sending close failed")
 		return
 	}
 
-	// Create ssh session
-	if s, c, err = fn(); err != nil {
-		err = errors.Wrap(err, "main: creating ssh session failed")
-		return
-	}
-	defer c.Close()
+	// Close stdin
+	stdin.Close()
 
-	// Remove last char
-	if err = s.Run("truncate --size=-1 " + dst); err != nil {
-		err = errors.Wrap(err, "astissh: removing last char failed")
+	// Wait
+	if err = s.Wait(); err != nil {
+		err = errors.Wrap(err, "astissh: waiting failed")
 		return
 	}
 	return
