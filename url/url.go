@@ -18,13 +18,13 @@ func Parse(i string) (o *url.URL, err error) {
 	// File
 	if o.Scheme == "" {
 		// Get absolute path
-		if i, err = filepath.ToSlash(filepath.Abs(i)); err != nil {
+		if i, err = filepath.Abs(i); err != nil {
 			err = errors.Wrapf(err, "getting absolute path of %s failed", i)
 			return
 		}
 
 		// Set url
-		o = &url.URL{Path: i, Scheme: "file"}
+		o = &url.URL{Path: filepath.ToSlash(i), Scheme: "file"}
 	}
 	return
 }
