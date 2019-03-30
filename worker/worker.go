@@ -33,7 +33,7 @@ func (w *Worker) HandleSignals() {
 	signal.Notify(ch)
 	go func() {
 		for s := range ch {
-			astilog.Infof("astiworker: received signal %s", s)
+			astilog.Debugf("astiworker: received signal %s", s)
 			if s == syscall.SIGABRT || s == syscall.SIGKILL || s == syscall.SIGINT || s == syscall.SIGQUIT || s == syscall.SIGTERM {
 				w.Stop()
 			}
