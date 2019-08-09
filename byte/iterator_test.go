@@ -10,6 +10,9 @@ func TestIterator(t *testing.T) {
 	// Setup
 	i := NewIterator([]byte("1234567"))
 
+	// Length
+	assert.Equal(t, 7, i.Len())
+
 	// Next byte
 	b, err := i.NextByte()
 	assert.NoError(t, err)

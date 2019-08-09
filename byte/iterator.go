@@ -66,3 +66,8 @@ func (i *Iterator) Dump() (bs []byte) {
 	i.offset = len(i.bs)
 	return
 }
+
+// Len returns the slice length
+func (i *Iterator) Len() int {
+	return len(i.bs)
+}
