@@ -19,6 +19,9 @@ func newTask(parentWg *sync.WaitGroup) (t *Task) {
 	return
 }
 
+// TaskFunc represents a function that can create a new task
+type TaskFunc func() *Task
+
 // NewSubTask creates a new sub task
 func (t *Task) NewSubTask() *Task {
 	return newTask(t.wg)

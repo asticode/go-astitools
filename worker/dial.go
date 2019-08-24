@@ -19,6 +19,7 @@ type DialOptions struct {
 }
 
 // Dial dials with options
+// It's the responsibility of the caller to close the Client
 func (w *Worker) Dial(o DialOptions) {
 	// Create task
 	t := w.NewTask()
@@ -66,11 +67,6 @@ func (w *Worker) Dial(o DialOptions) {
 
 		// Wait for context to be done
 		<-w.ctx.Done()
-
-		// Close client
-		if err := o.Client.Close(); err != nil {
-			astilog.Error(errors.Wrapf(err, "astiworker: closing dial on %s failed", o.Addr))
-		}
 
 		// Task is done
 		t.Done()
