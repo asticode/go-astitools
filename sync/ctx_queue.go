@@ -9,8 +9,10 @@ import (
 )
 
 // CtxQueue is a queue that can
-// - handle a context without dropping any messages sent previously
-// - ensure that sending a message is not blocking even if the context has been cancelled and the queue has not been started
+// - handle a context without dropping any messages sent before the context is cancelled
+// - ensure that sending a message is not blocking if
+//     - the queue has not been started
+//     - the context has been cancelled
 type CtxQueue struct {
 	c          chan ctxQueueMessage
 	ctxIsDone  uint32
