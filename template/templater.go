@@ -90,25 +90,17 @@ func NewTemplater(templatesPath, layoutsPath, ext string) (t *Templater, err err
 
 // Add adds a new template
 func (t *Templater) Add(path, content string) (err error) {
-	// Lock
-	t.m.Lock()
-	defer t.m.Unlock()
-
-	// Parse content
-	var tpl = template.New("root")
-	if tpl, err = tpl.Parse(content); err != nil {
-		err = errors.Wrapf(err, "astitemplate: parsing template content for path %s failed", path)
-		return
-	}
-
-	// Parse files
-	if tpl, err = tpl.ParseFiles(t.layouts...); err != nil {
-		err = errors.Wrapf(err, "astitemplate: parsing layouts %s for path %s failed", strings.Join(t.layouts, ", "), path)
+	// Parse
+	var tpl *template.Template
+	if tpl, err = t.Parse(content); err != nil {
+		err = errors.Wrapf(err, "astitemplate: parsing template for path %s failed", path)
 		return
 	}
 
 	// Add template
+	t.m.Lock()
 	t.templates[path] = tpl
+	t.m.Unlock()
 	return
 }
 
@@ -124,5 +116,21 @@ func (t *Templater) Template(path string) (tpl *template.Template, ok bool) {
 	t.m.Lock()
 	defer t.m.Unlock()
 	tpl, ok = t.templates[path]
+	return
+}
+
+func (t *Templater) Parse(content string) (o *template.Template, err error) {
+	// Parse content
+	o = template.New("root")
+	if o, err = o.Parse(content); err != nil {
+		err = errors.Wrap(err, "astitemplate: parsing template content failed")
+		return
+	}
+
+	// Parse files
+	if o, err = o.ParseFiles(t.layouts...); err != nil {
+		err = errors.Wrapf(err, "astitemplate: parsing layouts %s failed", strings.Join(t.layouts, ", "))
+		return
+	}
 	return
 }
