@@ -2,130 +2,167 @@ package astiaudio
 
 import (
 	"math"
+	"sync"
 	"time"
 )
 
 // SilenceDetector represents a silence detector
 type SilenceDetector struct {
-	audioLevels *[]float64
-	c           SilenceDetectorConfiguration
-	samples     *[]int32
+	analyses              []analysis
+	buf                   []int32
+	m                     *sync.Mutex // Locks buf
+	minAnalysesPerSilence int
+	o                     SilenceDetectorOptions
+	samplesPerAnalysis    int
 }
 
-// SilenceDetectorConfiguration represents a silence detector configuration
-type SilenceDetectorConfiguration struct {
-	SilenceMinDuration time.Duration `toml:"silence_min_duration"`
-	StepDuration       time.Duration `toml:"step_duration"`
+type analysis struct {
+	level   float64
+	samples []int32
+}
+
+// SilenceDetectorOptions represents a silence detector options
+type SilenceDetectorOptions struct {
+	MaxSilenceAudioLevel float64       `toml:"max_silence_audio_level"`
+	MinSilenceDuration   time.Duration `toml:"min_silence_duration"`
+	SampleRate           float64       `toml:"sample_rate"`
+	StepDuration         time.Duration `toml:"step_duration"`
 }
 
 // NewSilenceDetector creates a new silence detector
-func NewSilenceDetector(c SilenceDetectorConfiguration) (d *SilenceDetector) {
+func NewSilenceDetector(o SilenceDetectorOptions) (d *SilenceDetector) {
 	// Create
-	d = &SilenceDetector{c: c}
+	d = &SilenceDetector{
+		m: &sync.Mutex{},
+		o: o,
+	}
+
+	// Reset
 	d.Reset()
 
-	// Default configuration values
-	if d.c.SilenceMinDuration == 0 {
-		d.c.SilenceMinDuration = time.Second
+	// Default option values
+	if d.o.MinSilenceDuration == 0 {
+		d.o.MinSilenceDuration = time.Second
 	}
-	if d.c.StepDuration == 0 {
-		d.c.StepDuration = 30 * time.Millisecond
+	if d.o.StepDuration == 0 {
+		d.o.StepDuration = 30 * time.Millisecond
 	}
+
+	// Compute attributes depending on options
+	d.samplesPerAnalysis = int(math.Floor(d.o.SampleRate * d.o.StepDuration.Seconds()))
+	d.minAnalysesPerSilence = int(math.Floor(d.o.MinSilenceDuration.Seconds() / d.o.StepDuration.Seconds()))
 	return
 }
 
 // Reset resets the silence detector
 func (d *SilenceDetector) Reset() {
-	d.audioLevels = &[]float64{}
-	d.samples = &[]int32{}
+	// Lock
+	d.m.Lock()
+	defer d.m.Unlock()
+
+	// Reset
+	d.analyses = []analysis{}
+	d.buf = []int32{}
 }
 
 // Add adds samples to the buffer and checks whether there are valid samples between silences
-func (d *SilenceDetector) Add(samples []int32, sampleRate int, silenceMaxAudioLevel float64) (validSamples [][]int32) {
-	// Append new samples
-	*d.samples = append(*d.samples, samples...)
+func (d *SilenceDetector) Add(samples []int32) (validSamples [][]int32) {
+	// Lock
+	d.m.Lock()
+	defer d.m.Unlock()
 
-	// Get number of samples per audio level analysis
-	var audioLevelAnalysisSamplesCount = int(math.Floor(float64(sampleRate) * d.c.StepDuration.Seconds()))
+	// Append samples to buffer
+	d.buf = append(d.buf, samples...)
 
-	// Get number of processed samples
-	var processedSamplesCount = len(*d.audioLevels) * audioLevelAnalysisSamplesCount
+	// Analyze samples by step
+	for len(d.buf) >= d.samplesPerAnalysis {
+		// Append analysis
+		d.analyses = append(d.analyses, analysis{
+			level:   AudioLevel(d.buf[:d.samplesPerAnalysis]),
+			samples: append([]int32(nil), d.buf[:d.samplesPerAnalysis]...),
+		})
 
-	// Get number of processable samples
-	var processableSamplesCount = len(*d.samples) - processedSamplesCount
-
-	// Not enough processable samples
-	if processableSamplesCount < audioLevelAnalysisSamplesCount {
-		return
+		// Remove samples from buffer
+		d.buf = d.buf[d.samplesPerAnalysis:]
 	}
 
-	// Compute audio levels
-	for i := 0; i < int(math.Floor(float64(processableSamplesCount)/float64(audioLevelAnalysisSamplesCount))); i++ {
-		// Offsets
-		start := processedSamplesCount + int(i*audioLevelAnalysisSamplesCount)
-		end := start + audioLevelAnalysisSamplesCount
+	// Loop through analyses
+	var leadingSilence, inBetween, trailingSilence int
+	for i := 0; i < len(d.analyses); i++ {
+		if d.analyses[i].level < d.o.MaxSilenceAudioLevel {
+			// This is a silence
 
-		// Append audio level
-		*d.audioLevels = append(*d.audioLevels, AudioLevel((*d.samples)[start:end]))
-	}
+			// This is a leading silence
+			if inBetween == 0 {
+				leadingSilence++
 
-	// Count silences at the start
-	var silencesCount int
-	for _, l := range *d.audioLevels {
-		if l < silenceMaxAudioLevel {
-			silencesCount++
+				// The leading silence is valid
+				// We can trim its useless part
+				if leadingSilence > d.minAnalysesPerSilence {
+					d.analyses = d.analyses[leadingSilence-d.minAnalysesPerSilence:]
+					i -= leadingSilence - d.minAnalysesPerSilence
+					leadingSilence = d.minAnalysesPerSilence
+				}
+				continue
+			}
+
+			// This is a trailing silence
+			trailingSilence++
+
+			// Trailing silence is invalid
+			if trailingSilence < d.minAnalysesPerSilence {
+				continue
+			}
+
+			// Trailing silence is valid
+			// Loop through analyses
+			var ss []int32
+			for _, a := range d.analyses[:i+1] {
+				ss = append(ss, a.samples...)
+			}
+
+			// Append valid samples
+			validSamples = append(validSamples, ss)
+
+			// Remove leading silence and non silence
+			d.analyses = d.analyses[leadingSilence+inBetween:]
+			i -= leadingSilence + inBetween
+
+			// Reset counts
+			leadingSilence, inBetween, trailingSilence = trailingSilence, 0, 0
 		} else {
-			break
-		}
-	}
+			// This is not a silence
 
-	// Keep 1 silence at the start
-	if silencesCount > 1 {
-		*d.audioLevels = (*d.audioLevels)[silencesCount-1:]
-		*d.samples = (*d.samples)[(silencesCount-1)*audioLevelAnalysisSamplesCount:]
-	}
+			// This is a leading non silence
+			// We need to remove it
+			if i == 0 {
+				d.analyses = d.analyses[1:]
+				i = -1
+				continue
+			}
 
-	// Not enough audio levels to process silences in the middle
-	if len(*d.audioLevels) <= 1 {
-		return
-	}
+			// This is the first in-between
+			if inBetween == 0 {
+				// The leading silence is invalid
+				// We need to remove it as well as this first non silence
+				if leadingSilence < d.minAnalysesPerSilence {
+					d.analyses = d.analyses[i+1:]
+					i = -1
+					continue
+				}
+			}
 
-	// Process silences in the middle
-	var i int
-	silencesCount = 0
-	for i = 1; i < len(*d.audioLevels); i++ {
-		// Silence detected
-		if (*d.audioLevels)[i] < silenceMaxAudioLevel {
-			silencesCount++
+			// This non-silence was preceded by a silence not big enough to be a valid trailing silence
+			// We incorporate it in the in-between
+			if trailingSilence > 0 {
+				inBetween += trailingSilence
+				trailingSilence = 0
+			}
+
+			// This is an in-between
+			inBetween++
 			continue
 		}
-
-		// Process silences
-		d.processSilencesInTheMiddle(audioLevelAnalysisSamplesCount, i, silencesCount, &validSamples)
-
-		// Reset
-		silencesCount = 0
 	}
-
-	// Process remaining silences
-	d.processSilencesInTheMiddle(audioLevelAnalysisSamplesCount, i, silencesCount, &validSamples)
 	return
-}
-
-// processSilencesInTheMiddle processes silences in the middle
-func (d *SilenceDetector) processSilencesInTheMiddle(audioLevelAnalysisSamplesCount, i, silencesCount int, validSamples *[][]int32) {
-	// Too many silences, we have valid samples!
-	if time.Duration(silencesCount)*d.c.StepDuration >= d.c.SilenceMinDuration {
-		// Keep 1 silence at the end
-		end := (i - silencesCount) * audioLevelAnalysisSamplesCount
-
-		// Add valid samples
-		var samples = make([]int32, end)
-		copy(samples, (*d.samples)[:end])
-		*validSamples = append(*validSamples, samples)
-
-		// Reset
-		*d.audioLevels = (*d.audioLevels)[(i - silencesCount):]
-		*d.samples = (*d.samples)[end:]
-	}
 }
