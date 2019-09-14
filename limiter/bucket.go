@@ -48,7 +48,7 @@ func (b *Bucket) tick() {
 }
 
 // close closes the bucket properly
-func (b *Bucket) close() {
+func (b *Bucket) Close() {
 	if b.channelQuit != nil {
 		close(b.channelQuit)
 		b.channelQuit = nil
