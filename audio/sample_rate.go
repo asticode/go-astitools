@@ -5,6 +5,7 @@ import "github.com/pkg/errors"
 type SampleFunc func(s int32) error
 
 type SampleRateConverter struct {
+	b          []int32
 	delta      float64
 	dstSamples int
 	fn         SampleFunc
@@ -19,6 +20,7 @@ func NewSampleRateConverter(srcSampleRate, dstSampleRate float64, fn SampleFunc)
 }
 
 func (c *SampleRateConverter) Reset() {
+	c.b = []int32{}
 	c.dstSamples = 0
 	c.srcSamples = 0
 }
@@ -35,16 +37,29 @@ func (c *SampleRateConverter) Add(i int32) (err error) {
 
 	// Throw away data
 	if c.delta > 1 {
+		// Append to buffer
+		c.b = append(c.b, i)
+
 		// Make sure to always keep the first sample
 		if c.dstSamples > 0 && float64(c.srcSamples) <= c.delta*float64(c.dstSamples) {
 			return
 		}
 
+		// Merge samples
+		var s int32
+		for _, v := range c.b {
+			s += v
+		}
+		s /= int32(len(c.b))
+
+		// Reset buffer
+		c.b = []int32{}
+
 		// Increment dst samples
 		c.dstSamples++
 
 		// Custom
-		if err = c.fn(i); err != nil {
+		if err = c.fn(s); err != nil {
 			err = errors.Wrap(err, "astiaudio: handling sample failed")
 			return
 		}

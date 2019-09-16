@@ -13,9 +13,15 @@ func TestSampleRateConverter(t *testing.T) {
 		i = append(i, idx+1)
 	}
 
-	// Nothing to do
+	// Create sample func
 	var o []int32
-	c := NewSampleRateConverter(1, 1, func(s int32) { o = append(o, s) })
+	var sampleFunc = func(s int32) (err error) {
+		o = append(o, s)
+		return
+	}
+
+	// Nothing to do
+	c := NewSampleRateConverter(1, 1, sampleFunc)
 	for _, s := range i {
 		c.Add(s)
 	}
@@ -23,11 +29,11 @@ func TestSampleRateConverter(t *testing.T) {
 
 	// Simple src sample rate > dst sample rate
 	o = []int32{}
-	c = NewSampleRateConverter(5, 3, func(s int32) { o = append(o, s) })
+	c = NewSampleRateConverter(5, 3, sampleFunc)
 	for _, s := range i {
 		c.Add(s)
 	}
-	assert.Equal(t, []int32{1, 2, 4, 6, 7, 9, 11, 12, 14, 16, 17, 19}, o)
+	assert.Equal(t, []int32{1, 2, 3, 5, 7, 8, 10, 12, 13, 15, 17, 18}, o)
 
 	// Realistic src sample rate > dst sample rate
 	i = []int32{}
@@ -35,7 +41,7 @@ func TestSampleRateConverter(t *testing.T) {
 		i = append(i, idx+1)
 	}
 	o = []int32{}
-	c = NewSampleRateConverter(44100, 16000, func(s int32) { o = append(o, s) })
+	c = NewSampleRateConverter(44100, 16000, sampleFunc)
 	for _, s := range i {
 		c.Add(s)
 	}
