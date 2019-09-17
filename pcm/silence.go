@@ -1,4 +1,4 @@
-package astiaudio
+package astipcm
 
 import (
 	"math"
@@ -9,7 +9,7 @@ import (
 // SilenceDetector represents a silence detector
 type SilenceDetector struct {
 	analyses              []analysis
-	buf                   []int32
+	buf                   []int
 	m                     *sync.Mutex // Locks buf
 	minAnalysesPerSilence int
 	o                     SilenceDetectorOptions
@@ -18,14 +18,14 @@ type SilenceDetector struct {
 
 type analysis struct {
 	level   float64
-	samples []int32
+	samples []int
 }
 
 // SilenceDetectorOptions represents a silence detector options
 type SilenceDetectorOptions struct {
 	MaxSilenceAudioLevel float64       `toml:"max_silence_audio_level"`
 	MinSilenceDuration   time.Duration `toml:"min_silence_duration"`
-	SampleRate           float64       `toml:"sample_rate"`
+	SampleRate           int           `toml:"sample_rate"`
 	StepDuration         time.Duration `toml:"step_duration"`
 }
 
@@ -49,7 +49,7 @@ func NewSilenceDetector(o SilenceDetectorOptions) (d *SilenceDetector) {
 	}
 
 	// Compute attributes depending on options
-	d.samplesPerAnalysis = int(math.Floor(d.o.SampleRate * d.o.StepDuration.Seconds()))
+	d.samplesPerAnalysis = int(math.Floor(float64(d.o.SampleRate) * d.o.StepDuration.Seconds()))
 	d.minAnalysesPerSilence = int(math.Floor(d.o.MinSilenceDuration.Seconds() / d.o.StepDuration.Seconds()))
 	return
 }
@@ -62,11 +62,11 @@ func (d *SilenceDetector) Reset() {
 
 	// Reset
 	d.analyses = []analysis{}
-	d.buf = []int32{}
+	d.buf = []int{}
 }
 
 // Add adds samples to the buffer and checks whether there are valid samples between silences
-func (d *SilenceDetector) Add(samples []int32) (validSamples [][]int32) {
+func (d *SilenceDetector) Add(samples []int) (validSamples [][]int) {
 	// Lock
 	d.m.Lock()
 	defer d.m.Unlock()
@@ -79,7 +79,7 @@ func (d *SilenceDetector) Add(samples []int32) (validSamples [][]int32) {
 		// Append analysis
 		d.analyses = append(d.analyses, analysis{
 			level:   AudioLevel(d.buf[:d.samplesPerAnalysis]),
-			samples: append([]int32(nil), d.buf[:d.samplesPerAnalysis]...),
+			samples: append([]int(nil), d.buf[:d.samplesPerAnalysis]...),
 		})
 
 		// Remove samples from buffer
@@ -116,7 +116,7 @@ func (d *SilenceDetector) Add(samples []int32) (validSamples [][]int32) {
 
 			// Trailing silence is valid
 			// Loop through analyses
-			var ss []int32
+			var ss []int
 			for _, a := range d.analyses[:i+1] {
 				ss = append(ss, a.samples...)
 			}

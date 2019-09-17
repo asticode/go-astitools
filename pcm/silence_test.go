@@ -1,4 +1,4 @@
-package astiaudio
+package astipcm
 
 import (
 	"testing"
@@ -17,27 +17,27 @@ func TestSilenceDetector(t *testing.T) {
 	})
 
 	// Leading non silences + invalid leading silence + trailing silence is leftover
-	vs := sd.Add([]int32{3, 1, 3, 1})
-	assert.Equal(t, [][]int32(nil), vs)
+	vs := sd.Add([]int{3, 1, 3, 1})
+	assert.Equal(t, [][]int(nil), vs)
 	assert.Len(t, sd.analyses, 1)
 
 	// Valid leading silence but trailing silence is insufficient for now
-	vs = sd.Add([]int32{1, 3, 3, 1})
-	assert.Equal(t, [][]int32(nil), vs)
+	vs = sd.Add([]int{1, 3, 3, 1})
+	assert.Equal(t, [][]int(nil), vs)
 	assert.Len(t, sd.analyses, 5)
 
 	// Valid samples
-	vs = sd.Add([]int32{1})
-	assert.Equal(t, [][]int32{{1, 1, 3, 3, 1, 1}}, vs)
+	vs = sd.Add([]int{1})
+	assert.Equal(t, [][]int{{1, 1, 3, 3, 1, 1}}, vs)
 	assert.Len(t, sd.analyses, 2)
 
 	// Multiple valid samples + truncate leading and trailing silences
-	vs = sd.Add([]int32{1, 1, 1, 1, 3, 3, 1, 1, 1, 1, 3, 3, 1, 1, 1, 1})
-	assert.Equal(t, [][]int32{{1, 1, 3, 3, 1, 1}, {1, 1, 3, 3, 1, 1}}, vs)
+	vs = sd.Add([]int{1, 1, 1, 1, 3, 3, 1, 1, 1, 1, 3, 3, 1, 1, 1, 1})
+	assert.Equal(t, [][]int{{1, 1, 3, 3, 1, 1}, {1, 1, 3, 3, 1, 1}}, vs)
 	assert.Len(t, sd.analyses, 2)
 
 	// Invalid in-between silences that should be kept
-	vs = sd.Add([]int32{1, 1, 1, 3, 3, 1, 3, 3, 1, 3, 3, 1, 1, 1})
-	assert.Equal(t, [][]int32{{1, 1, 3, 3, 1, 3, 3, 1, 3, 3, 1, 1}}, vs)
+	vs = sd.Add([]int{1, 1, 1, 3, 3, 1, 3, 3, 1, 3, 3, 1, 1, 1})
+	assert.Equal(t, [][]int{{1, 1, 3, 3, 1, 3, 3, 1, 3, 3, 1, 1}}, vs)
 	assert.Len(t, sd.analyses, 2)
 }
