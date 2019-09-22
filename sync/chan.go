@@ -160,3 +160,10 @@ func (c *Chan) Add(fn func()) {
 	c.c.Signal()
 	c.c.L.Unlock()
 }
+
+// Reset resets the chan
+func (c *Chan) Reset() {
+	c.mf.Lock()
+	defer c.mf.Unlock()
+	c.fs = []func(){}
+}
