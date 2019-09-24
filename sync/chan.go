@@ -20,6 +20,7 @@ type Chan struct {
 	c      *sync.Cond
 	ctx    context.Context
 	fs     []func()
+	mc     *sync.Mutex // Locks ctx
 	mf     *sync.Mutex // Locks fs
 	o      ChanOptions
 	oStart *sync.Once
@@ -38,6 +39,7 @@ type ChanOptions struct {
 func NewChan(o ChanOptions) *Chan {
 	return &Chan{
 		c:      sync.NewCond(&sync.Mutex{}),
+		mc:     &sync.Mutex{},
 		mf:     &sync.Mutex{},
 		o:      o,
 		oStart: &sync.Once{},
@@ -51,7 +53,9 @@ func (c *Chan) Start(ctx context.Context) {
 	// Make sure to start only once
 	c.oStart.Do(func() {
 		// Create context
+		c.mc.Lock()
 		c.ctx, c.cancel = context.WithCancel(ctx)
+		c.mc.Unlock()
 
 		// Reset once
 		c.oStop = &sync.Once{}
@@ -80,10 +84,13 @@ func (c *Chan) Start(ctx context.Context) {
 			// Only return if context has been cancelled and:
 			//   - the user wants to drop funcs that has not yet been processed
 			//   - the buffer is empty otherwise
+			c.mc.Lock()
 			if c.ctx.Err() != nil && (c.o.TaskFunc == nil || l == 0) {
+				c.mc.Unlock()
 				c.c.L.Unlock()
 				return
 			}
+			c.mc.Unlock()
 
 			// No funcs in buffer
 			if l == 0 {
@@ -126,9 +133,12 @@ func (c *Chan) Stop() {
 // Add adds a new item to the chan
 func (c *Chan) Add(fn func()) {
 	// Check context
+	c.mc.Lock()
 	if c.ctx != nil && c.ctx.Err() != nil {
+		c.mc.Unlock()
 		return
 	}
+	c.mc.Unlock()
 
 	// Wrap func
 	wfn := fn
