@@ -12,9 +12,9 @@ import (
 
 // Statuses
 const (
-	ExecHandlerStatusCrashed = "crashed"
-	ExecHandlerStatusRunning = "running"
-	ExecHandlerStatusStopped = "stopped"
+	StatusCrashed = "crashed"
+	StatusRunning = "running"
+	StatusStopped = "stopped"
 )
 
 // ExecHandler represents an object capable of handling the execution of a cmd
@@ -34,11 +34,11 @@ type defaultExecHandler struct {
 func (h *defaultExecHandler) Status() string {
 	if h.ctx.Err() != nil {
 		if h.stopped || h.err == nil {
-			return ExecHandlerStatusStopped
+			return StatusStopped
 		}
-		return ExecHandlerStatusCrashed
+		return StatusCrashed
 	}
-	return ExecHandlerStatusRunning
+	return StatusRunning
 }
 
 func (h *defaultExecHandler) Stop() {
@@ -48,19 +48,33 @@ func (h *defaultExecHandler) Stop() {
 	})
 }
 
+type ExecOptions struct {
+	Args       []string
+	CmdAdapter func(cmd *exec.Cmd) error
+	Name       string
+}
+
 // Exec executes a cmd
 // The process will be stopped when the worker stops
-func (w *Worker) Exec(name string, args ...string) (ExecHandler, error) {
+func (w *Worker) Exec(o ExecOptions) (ExecHandler, error) {
 	// Create handler
 	h := &defaultExecHandler{}
 	h.ctx, h.cancel = context.WithCancel(context.Background())
 
+	// Create command
+	cmd := exec.CommandContext(h.ctx, o.Name, o.Args...)
+
+	// Adapt command
+	if o.CmdAdapter != nil {
+		if err := o.CmdAdapter(cmd); err != nil {
+			return nil, errors.Wrap(err, "astiworker: adapting cmd failed")
+		}
+	}
+
 	// Start
-	cmd := exec.CommandContext(h.ctx, name, args...)
-	n := strings.Join(append([]string{name}, args...), " ")
-	astilog.Infof("astiworker: starting %s", n)
+	astilog.Infof("astiworker: starting %s", strings.Join(cmd.Args, " "))
 	if err := cmd.Start(); err != nil {
-		err = errors.Wrapf(err, "astiworker: executing %s", n)
+		err = errors.Wrapf(err, "astiworker: executing %s", strings.Join(cmd.Args, " "))
 		return nil, err
 	}
 
@@ -71,7 +85,7 @@ func (w *Worker) Exec(name string, args ...string) (ExecHandler, error) {
 	go func() {
 		h.err = cmd.Wait()
 		h.cancel()
-		astilog.Infof("astiworker: status is now %s for %s", h.Status(), n)
+		astilog.Infof("astiworker: status is now %s for %s", h.Status(), strings.Join(cmd.Args, " "))
 		t.Done()
 	}()
 	return h, nil
