@@ -15,9 +15,6 @@ type ConfigurationConsumer struct {
 
 // Consume consumes AMQP events
 func (w *Worker) Consume(a *astiamqp.AMQP, cs ...ConfigurationConsumer) (err error) {
-	// Create task
-	t := w.NewTask()
-
 	// Loop through configurations
 	for idxConf, c := range cs {
 		// Loop through workers
@@ -29,16 +26,13 @@ func (w *Worker) Consume(a *astiamqp.AMQP, cs ...ConfigurationConsumer) (err err
 		}
 	}
 
-	// Execute the rest in a go routine
-	go func() {
+	// Execute in a task
+	w.NewTask().Do(func() {
 		// Wait for context to be done
 		<-w.Context().Done()
 
 		// Stop amqp
 		a.Stop()
-
-		// Task is done
-		t.Done()
-	}()
+	})
 	return
 }

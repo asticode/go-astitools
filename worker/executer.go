@@ -50,8 +50,9 @@ func (h *defaultExecHandler) Stop() {
 
 type ExecOptions struct {
 	Args       []string
-	CmdAdapter func(cmd *exec.Cmd) error
+	CmdAdapter func(cmd *exec.Cmd, h ExecHandler) error
 	Name       string
+	StopFunc   func(cmd *exec.Cmd) error
 }
 
 // Exec executes a cmd
@@ -59,14 +60,14 @@ type ExecOptions struct {
 func (w *Worker) Exec(o ExecOptions) (ExecHandler, error) {
 	// Create handler
 	h := &defaultExecHandler{}
-	h.ctx, h.cancel = context.WithCancel(context.Background())
+	h.ctx, h.cancel = context.WithCancel(w.Context())
 
 	// Create command
-	cmd := exec.CommandContext(h.ctx, o.Name, o.Args...)
+	cmd := exec.Command(o.Name, o.Args...)
 
 	// Adapt command
 	if o.CmdAdapter != nil {
-		if err := o.CmdAdapter(cmd); err != nil {
+		if err := o.CmdAdapter(cmd, h); err != nil {
 			return nil, errors.Wrap(err, "astiworker: adapting cmd failed")
 		}
 	}
@@ -78,15 +79,29 @@ func (w *Worker) Exec(o ExecOptions) (ExecHandler, error) {
 		return nil, err
 	}
 
-	// Create task
-	t := w.NewTask()
-
-	// Wait
+	// Handle context
 	go func() {
+		// Wait for context to be done
+		<-h.ctx.Done()
+
+		// Get stop func
+		f := func() error { return cmd.Process.Kill() }
+		if o.StopFunc != nil {
+			f = func() error { return o.StopFunc(cmd) }
+		}
+
+		// Stop
+		if err := f(); err != nil {
+			astilog.Error(errors.Wrap(err, "astiworker: stopping cmd failed"))
+			return
+		}
+	}()
+
+	// Execute in a task
+	w.NewTask().Do(func() {
 		h.err = cmd.Wait()
 		h.cancel()
 		astilog.Infof("astiworker: status is now %s for %s", h.Status(), strings.Join(cmd.Args, " "))
-		t.Done()
-	}()
+	})
 	return h, nil
 }

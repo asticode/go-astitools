@@ -13,12 +13,11 @@ func (w *Worker) Serve(addr string, h http.Handler) {
 	// Create server
 	s := &http.Server{Addr: addr, Handler: h}
 
-	// Create task
-	t := w.NewTask()
+	// Execute in a task
+	w.NewTask().Do(func() {
+		// Log
+		astilog.Infof("astiworker: serving on %s", addr)
 
-	// Execute the rest in a goroutine
-	astilog.Infof("astiworker: serving on %s", addr)
-	go func() {
 		// Serve
 		var chanDone = make(chan error)
 		go func() {
@@ -44,8 +43,5 @@ func (w *Worker) Serve(addr string, h http.Handler) {
 		if err := s.Shutdown(context.Background()); err != nil {
 			astilog.Error(errors.Wrapf(err, "astiworker: shutting down server on %s failed", addr))
 		}
-
-		// Task is done
-		t.Done()
-	}()
+	})
 }

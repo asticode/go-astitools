@@ -21,11 +21,8 @@ type DialOptions struct {
 // Dial dials with options
 // It's the responsibility of the caller to close the Client
 func (w *Worker) Dial(o DialOptions) {
-	// Create task
-	t := w.NewTask()
-
-	// Execute the rest in a goroutine
-	go func() {
+	// Execute in a task
+	w.NewTask().Do(func() {
 		// Dial
 		go func() {
 			const sleepError = 5 * time.Second
@@ -67,9 +64,6 @@ func (w *Worker) Dial(o DialOptions) {
 
 		// Wait for context to be done
 		<-w.ctx.Done()
-
-		// Task is done
-		t.Done()
-	}()
+	})
 
 }

@@ -27,6 +27,17 @@ func (t *Task) NewSubTask() *Task {
 	return newTask(t.wg)
 }
 
+// Do executes the task
+func (t *Task) Do(f func()) {
+	go func() {
+		// Make sure to mark the task as done
+		defer t.Done()
+
+		// Custom
+		f()
+	}()
+}
+
 // Done indicates the task is done
 func (t *Task) Done() {
 	t.od.Do(func() {
