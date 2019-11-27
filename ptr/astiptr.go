@@ -7,6 +7,11 @@ func Bool(i bool) *bool {
 	return &i
 }
 
+// Byte transforms a byte into a *byte
+func Byte(i byte) *byte {
+	return &i
+}
+
 // Duration transforms a time.Duration into a *time.Duration
 func Duration(i time.Duration) *time.Duration {
 	return &i
