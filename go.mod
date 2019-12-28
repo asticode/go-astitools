@@ -4,8 +4,8 @@ go 1.13
 
 require (
 	github.com/BurntSushi/toml v0.3.1
-	github.com/asticode/go-astiamqp v1.1.0
-	github.com/asticode/go-astilog v1.2.0
+	github.com/asticode/go-astiamqp v1.2.0
+	github.com/asticode/go-astilog v1.3.0
 	github.com/asticode/go-astiws v1.0.1
 	github.com/imdario/mergo v0.3.8
 	github.com/julienschmidt/httprouter v1.3.0
